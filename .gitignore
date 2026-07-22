@@ -1,0 +1,16 @@
+.env
+.render.env
+__pycache__/
+*.pyc
+venv/
+.venv-wsl/
+*.egg-info/
+.pytest_cache/
+
+# Runtime logs (written to logs/ - see chatbot.config); keep the dir tracked
+logs/*
+!logs/.gitkeep
+
+# Pre-reorg local runtime logs, in case any leftover copies exist at root
+/chat_log.csv
+/stage_log.jsonl

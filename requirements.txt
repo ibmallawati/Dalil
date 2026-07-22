@@ -1,0 +1,8 @@
+flask
+numpy
+pypdf
+python-dotenv
+requests
+openai
+Flask-Limiter
+huggingface_hub

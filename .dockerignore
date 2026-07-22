@@ -1,0 +1,11 @@
+.env
+__pycache__/
+experiments/
+*.csv
+.git/
+venv/
+.venv-wsl/
+tests/
+logs/
+*.egg-info/
+.pytest_cache/

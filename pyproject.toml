@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chatbot"
+version = "0.1.0"
+description = "Omantel customer service chatbot: RAG + multi-database text-to-SQL, with a retry/backoff fault-tolerance layer."
+requires-python = ">=3.11"
+dependencies = [
+    "flask",
+    "numpy",
+    "pypdf",
+    "python-dotenv",
+    "requests",
+    "openai",
+    "Flask-Limiter",
+    "huggingface_hub",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+# Build-only deps for scripts/build_index.py's OCR fallback (see that file's
+# docstring). NOT deployed to Render - never add these to the base deps.
+build = ["pytesseract", "pdf2image"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

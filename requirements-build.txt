@@ -1,0 +1,9 @@
+# Build-only deps for the offline RAG index build (build_index.py).
+# NOT deployed to Render -- do not add these to requirements.txt or the Dockerfile.
+#
+# Also requires local system packages (see build_index.py / ocr_extract.py docstrings):
+#   Debian/Ubuntu: sudo apt install tesseract-ocr tesseract-ocr-eng tesseract-ocr-ara poppler-utils
+#   macOS:         brew install tesseract tesseract-lang poppler
+-r requirements.txt
+pytesseract
+pdf2image
