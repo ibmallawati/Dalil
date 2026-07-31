@@ -46,7 +46,12 @@ LOGS_DIR = BASE_DIR / "logs"
 # local Ollama server (http://localhost:11434/v1) is a .env edit, not a
 # code edit — which is exactly the offline demo-day fallback.
 DEFAULT_LLM_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
-DEFAULT_LLM_MODEL = "gemini-3.6-flash"
+# Ordered failover chain. Every entry was verified to answer correctly in
+# Arabic on 31 Jul 2026 against a real free-tier key.
+#
+# gemini-3.5-flash is deliberately ABSENT: its free-tier ceiling is 20
+# requests per DAY, which one rehearsal exhausts.
+DEFAULT_LLM_MODEL = "gemini-3.6-flash,gemini-3.5-flash-lite,gemini-3.1-flash-lite"
 
 # Gemini 3.x Flash is a THINKING model, and its reasoning tokens are billed
 # against max_tokens. Measured on gemini-3.6-flash, "what is the capital of
@@ -66,10 +71,25 @@ DEFAULT_LLM_MODEL = "gemini-3.6-flash"
 # Ollama server will 400 on it) — it is only sent when non-empty.
 DEFAULT_LLM_REASONING_EFFORT = "minimal"
 
-# Sized from measurement: a full six-field Arabic card is ~214 completion
-# tokens. This leaves headroom for a long service without inviting a
-# runaway. With reasoning_effort set, none of it is spent on thinking.
-DEFAULT_LLM_MAX_TOKENS = 1000
+# Sized from the WORST case, not a friendly one. Measured 31 Jul 2026:
+#
+#   short fixture service (6 short sections)     198 completion tokens
+#   realistic long service (15 documents,
+#     12 steps, tiered fees, notes)              832 completion tokens
+#
+#   at max_tokens=500  -> finish_reason='length', JSON DOES NOT PARSE
+#   at max_tokens=1000 -> complete, all 15 documents and 12 steps present
+#
+# Card length is driven by LIST fields (required_documents, steps), not by
+# prose length: a long but repetitive service gets summarised, while one
+# with many distinct documents does not. So the worst case is a service
+# with a long checklist, which is exactly what a government service is.
+#
+# 2000 is ~2.4x the measured worst case. The headroom is free — the free
+# tier is limited by requests per day, not tokens, and unused budget is
+# never spent. Truncation, by contrast, costs the entire answer: unparsed
+# JSON drops every response onto the plain-prose fallback.
+DEFAULT_LLM_MAX_TOKENS = 2000
 
 # --- Embedding defaults ---------------------------------------------------
 # intfloat/multilingual-e5-base: 768-dim, strong Arabic, runs on CPU.
@@ -125,9 +145,14 @@ class Settings:
     # generation (remote, OpenAI-compatible, provider-neutral)
     llm_api_key: str
     llm_base_url: str
-    llm_model: str
+    llm_models: tuple          # ordered failover chain; [0] is preferred
     llm_reasoning_effort: str
     llm_max_tokens: int
+
+    @property
+    def llm_model(self) -> str:
+        """The preferred model. Kept for display and logging."""
+        return self.llm_models[0]
     # embeddings (local, in-process)
     embed_model: str
     embed_dim: int
@@ -161,12 +186,24 @@ def load_settings() -> Settings:
 
     index_dir = Path(os.environ.get("INDEX_DIR", DATA_DIR / "index"))
 
+    # LLM_MODEL is an ORDERED FAILOVER CHAIN, comma-separated.
+    #
+    # Free-tier quotas are per-model and some are per-DAY: gemini-3.5-flash
+    # allows 20 requests a day, and one rehearsal exhausts it. Recovering by
+    # editing .env is not something anyone should be doing in front of a
+    # panel, so exhaustion falls through to the next model automatically
+    # (see chatbot.llm) and the answer records which model served it.
+    llm_models = tuple(
+        m.strip() for m in os.environ.get("LLM_MODEL", DEFAULT_LLM_MODEL).split(",")
+        if m.strip()
+    ) or (DEFAULT_LLM_MODEL,)
+
     LOGS_DIR.mkdir(exist_ok=True)
 
     return Settings(
         llm_api_key=llm_api_key,
         llm_base_url=os.environ.get("LLM_BASE_URL", DEFAULT_LLM_BASE_URL),
-        llm_model=os.environ.get("LLM_MODEL", DEFAULT_LLM_MODEL),
+        llm_models=llm_models,
         llm_reasoning_effort=os.environ.get(
             "LLM_REASONING_EFFORT", DEFAULT_LLM_REASONING_EFFORT
         ).strip(),

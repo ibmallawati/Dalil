@@ -134,7 +134,68 @@ regression suite is to notice.
 
 ---
 
-## 7. What not to do
+## 7. Quota budget
+
+**The default eval run costs ZERO LLM calls.**
+
+`run_eval.py` measures the *gate decision* — did Daleel answer, clarify, or refuse, and
+did it ground in the right service. All of that is the registry, the embedder (local),
+and the router. None of it touches the generation API.
+
+The same is true of the D3 normalization A/B (`fold_orthography` on vs off): it changes
+what gets embedded, and embedding is local. **Re-running the whole 30-question set both
+ways costs nothing.**
+
+Quota is only consumed by `--with-answers`, which additionally generates each answer to
+check `confidence` and field grounding.
+
+| Run | LLM calls | Notes |
+|---|---|---|
+| `run_eval.py` | **0** | gate + grounding. Run this freely, as often as you like |
+| `run_eval.py --with-answers` | 1 per row | ~30 calls; also records which model served each row |
+| D3 fold A/B | **0** | retrieval only, both directions |
+
+### Spending `--with-answers` safely
+
+Free-tier quotas are **per model**, so the failover chain is also a budget pool. A
+30-row run at ~30 calls fits comfortably in one model's daily allowance for every model
+we have measured — but the ceilings are unpublished (see §8), so treat this as a budget
+to plan rather than a certainty.
+
+Rules:
+
+1. **Never run `--with-answers` on the demo model.** Pin it to a fallback:
+   `python scripts/run_eval.py --with-answers --model gemini-3.1-flash-lite`
+2. **Check the per-model call counts** the harness prints at the end. If one model
+   served every row, the chain never engaged and you spent one model's whole allowance.
+3. **The `served_by` column matters.** An accuracy figure mixing three models is three
+   different systems averaged together. Report which model produced the number, or
+   pin one model for the run you intend to quote.
+4. Daily quotas reset at **midnight Pacific = 11:00 Muscat**. A run in the Muscat
+   morning spends *yesterday's* remaining quota.
+
+---
+
+## 8. What is not measured, and cannot be from here
+
+Free-tier per-model quotas are **not published** in Google's documentation — the docs
+say only that limits "can be viewed in Google AI Studio", which is authenticated and
+per-project.
+
+The only way to observe a ceiling from code is to hit it, and hitting it spends exactly
+the quota being protected. So the number is knowable only from
+**<https://aistudio.google.com/rate-limit>**, signed in as the key's owner.
+
+The one figure observed directly is `gemini-3.5-flash`: `quotaValue: '20'`,
+`GenerateRequestsPerDayPerProjectPerModel-FreeTier` — read from the 429 body after
+exhausting it. That model is excluded from the failover chain for that reason.
+
+Before the evaluation, record from AI Studio, for every model in the chain: RPM, RPD,
+TPM. Without RPD in particular, the demo's rehearsal budget is unknown.
+
+---
+
+## 9. What not to do
 
 - Do not tune the threshold or the margin **against the eval set and then report that
   same set's accuracy.** That is fitting to the test. If D2's tuning uses these

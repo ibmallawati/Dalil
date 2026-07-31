@@ -24,10 +24,15 @@ See docs/D7_METHODOLOGY.md for why it works this way. The short version:
   - Rows authored by someone who had read the registry are EXCLUDED.
     Their author field starts with REGISTRY-AWARE.
 
-This does NOT call the generation model. It measures routing and
-grounding, which is what determines whether Daleel answers the right
-question from the right source. Answer-text quality is a human review
-column.
+By default this makes ZERO generation calls. Gate and grounding are the
+registry, the local embedder and the router -- none of which touch the API,
+so the set can be re-run as often as you like and the D3 normalization A/B
+costs nothing.
+
+--with-answers additionally generates each answer (1 call per row) to check
+the L3 confidence verdict, and records which model served each one. That is
+the only thing here that spends quota, so pin it to a FALLBACK model --
+never the demo model. See docs/D7_METHODOLOGY.md section 7.
 """
 
 import argparse
@@ -38,6 +43,7 @@ from collections import Counter
 from pathlib import Path
 
 from chatbot.agent import registry
+from chatbot.agent.answer import generate_answer
 from chatbot.agent.router import Strategy, plan_and_gather
 from chatbot.config import settings
 from chatbot.logging_config import configure_logging
@@ -86,6 +92,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--eval-file", default=None)
     parser.add_argument("--show-passes", action="store_true")
+    parser.add_argument(
+        "--with-answers", action="store_true",
+        help="also generate each answer (1 LLM call per row). The default run "
+             "makes ZERO calls -- gate + grounding are local.")
+    parser.add_argument(
+        "--model", default=None,
+        help="pin generation to one model. Use a FALLBACK model, never the "
+             "demo model: quotas are per-model and per-day.")
     args = parser.parse_args()
 
     configure_logging()
@@ -120,9 +134,23 @@ def main():
         print("Add rows authored registry-blind. See docs/D7_METHODOLOGY.md §2.")
         return 1
 
+    served_by = Counter()
     results = []
     for row in eligible:
         ok, strategy, detail = score_row(row)
+
+        # Optional, and the ONLY thing here that spends quota.
+        if args.with_answers and not detail:
+            plan = plan_and_gather(row["question_ar"])
+            if plan.chunks:
+                try:
+                    result = generate_answer(
+                        row["question_ar"], list(plan.chunks), model=args.model)
+                    served_by[result.get("_served_by") or "?"] += 1
+                    if result.get("confidence") == "none" and row["expected_gate"] == "answer":
+                        ok, detail = False, "answered but reported confidence=none"
+                except Exception as exc:
+                    ok, detail = False, f"generation failed: {type(exc).__name__}"
         # Computed, not declared: did the deterministic layer have ANY
         # opinion about this phrasing?
         #
@@ -159,6 +187,15 @@ def main():
         print("               Every question matched a phrase already in the registry,")
         print("               so this set cannot measure the fall-through path at all.")
         print("               Add shorter/vaguer phrasings. See D7_METHODOLOGY.md §5.")
+
+    if served_by:
+        print("
+answers served by:")
+        for model, n in served_by.most_common():
+            print(f"  {n:3d}  {model}")
+        if len(served_by) == 1:
+            print("  (one model served every row -- the failover chain never engaged,")
+            print("   so this run spent one model's whole daily allowance)")
 
     by_type = Counter(r[0].get("question_type", "?") for r in results if not r[1])
     if by_type:
