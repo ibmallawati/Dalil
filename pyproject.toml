@@ -13,9 +13,12 @@ dependencies = [
     "pypdf",
     "python-dotenv",
     "requests",
-    "openai",
     "Flask-Limiter",
-    "huggingface_hub",
+    # Generation client, kept for its OpenAI-COMPATIBLE surface (Gemini,
+    # Ollama) rather than for OpenAI itself.
+    "openai",
+    # Local in-process embeddings at both build and query time. Pulls torch.
+    "sentence-transformers",
 ]
 
 [project.optional-dependencies]

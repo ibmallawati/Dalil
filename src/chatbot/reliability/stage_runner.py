@@ -38,10 +38,24 @@ class RetryPolicy:
 
 
 # The house rule: most stages are local/deterministic -> don't retry.
+# Retrieval now lives here too: since D1's revision the embedding model runs
+# in-process, so the retrieve stage makes no network call and has nothing
+# transient to retry.
 DEFAULT_POLICY = RetryPolicy(delays=())
 
-# The one stage that actually flakes: the HF network call. Your 1/2/4/8s.
-HF_POLICY = RetryPolicy(delays=(1, 2, 4, 8))
+# The stages that actually flake: remote LLM calls. 1/2/4/8s = 15s of retry.
+#
+# Named API_POLICY, not HF_POLICY: since D1 there is no HuggingFace call
+# anywhere in the request path, and a policy named after a provider we no
+# longer use is a comment that lies.
+#
+# KNOWN LIMIT: 15s absorbs transient 5xx and connection blips. It does NOT
+# absorb free-tier quota exhaustion — a per-minute RPM limit needs ~60s to
+# reset, and the retries here will all fail inside that window. Widening the
+# tail to cover it would mean up to a minute of silence mid-demo, which is
+# worse than failing fast. Rate limiting is handled as a demo-planning
+# problem (D9), not a backoff problem.
+API_POLICY = RetryPolicy(delays=(1, 2, 4, 8))
 
 
 @dataclass

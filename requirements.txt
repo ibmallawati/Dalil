@@ -3,6 +3,15 @@ numpy
 pypdf
 python-dotenv
 requests
-openai
 Flask-Limiter
-huggingface_hub
+
+# Generation client. Kept for its OpenAI-COMPATIBLE surface, not for OpenAI
+# itself: Gemini and Ollama both speak this protocol, so which provider
+# answers is an .env setting rather than a code change.
+openai
+
+# Embeddings, run locally in-process at BOTH build time and query time.
+# This pulls in torch. torch was previously forbidden here because it blew
+# past a free host's image-size limit; that constraint no longer applies,
+# and running locally is what keeps the retrieval path $0 and offline.
+sentence-transformers

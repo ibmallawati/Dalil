@@ -22,14 +22,22 @@ RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 TERMINAL_STATUS = {400, 401, 403, 404, 422}
 
 # Network-level exceptions (matched by class name so we need no imports).
-# Covers three client libraries this project actually uses:
-#   - requests/httpx (huggingface_hub's embed call)  -> Timeout, ConnectionError, ...
-#   - the openai library (route + generate + SQL-gen) -> APITimeoutError, APIConnectionError
+# Covers the client libraries this project actually uses:
+#   - httpx, under the openai SDK          -> Timeout, ConnectError, ...
+#   - the openai library itself            -> APITimeoutError, APIConnectionError
 # These carry NO HTTP status code, so they MUST be matched by name.
+#
+# RateLimitError is listed defensively. It normally arrives WITH status 429
+# and is already caught by RETRYABLE_STATUS above — but Daleel's generation
+# now runs on a free tier where 429 is an expected, routine condition
+# rather than an exceptional one, and a rate limit must never be
+# misclassified as TERMINAL. Matching it by name as well means it stays
+# retryable even if a provider omits the status code on the exception.
 RETRYABLE_EXC_NAMES = {
     "Timeout", "ConnectTimeout", "ReadTimeout",
     "ConnectionError", "ConnectError", "RemoteProtocolError",
     "APITimeoutError", "APIConnectionError",   # <- openai library
+    "RateLimitError",                          # <- free-tier quota (429)
 }
 
 
@@ -44,8 +52,34 @@ def _extract_status(exc):
     return None
 
 
+# Free-tier quotas come in two shapes, and only one of them is worth
+# waiting out:
+#
+#   per-minute  -> transient. Backing off is exactly right.
+#   per-DAY     -> exhausted until midnight. No amount of backoff helps.
+#
+# Measured against Gemini's free tier: gemini-3.5-flash allows 20 requests
+# per DAY. Hitting it sent the stage runner through all four retries for 77
+# seconds before failing anyway. On stage that is 77 seconds of silence
+# buying a failure that was certain from the first response.
+#
+# Google names the quota in the error body, so the distinction is readable
+# rather than guessed.
+DAILY_QUOTA_MARKERS = ("PerDay", "RequestsPerDay", "per day")
+
+
+def _is_daily_quota(exc) -> bool:
+    text = str(exc)
+    return any(marker in text for marker in DAILY_QUOTA_MARKERS)
+
+
 def classify(exc) -> Verdict:
     status = _extract_status(exc)
+
+    if status == 429 and _is_daily_quota(exc):
+        # Fail fast so the caller can surface a real message (or the demo
+        # can switch to its fallback) instead of stalling.
+        return Verdict.TERMINAL
 
     if status in RETRYABLE_STATUS:
         return Verdict.RETRY

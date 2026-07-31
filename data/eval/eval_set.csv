@@ -1,0 +1,7 @@
+id,question_ar,question_type,expected_gate,expected_service_id,expected_answer,expected_source_url,author,notes
+SEED-01,كيف أجدد جواز سفري؟,in_corpus,answer,rop-passport-renewal,,,REGISTRY-AWARE-claude,FORMAT EXAMPLE — excluded from reported figures. Replace.
+SEED-02,ما هي رسوم تجديد البطاقة الشخصية؟,in_corpus,answer,rop-id-renewal,,,REGISTRY-AWARE-claude,FORMAT EXAMPLE — excluded. Replace.
+SEED-03,أريد تجديد السجل التجاري,ambiguous,clarify,,,,REGISTRY-AWARE-claude,FORMAT EXAMPLE — declared ambiguity. Replace.
+SEED-04,كيف أحجز موعد في وزارة الصحة؟,uncovered_authority,refuse_uncovered,,,,REGISTRY-AWARE-claude,FORMAT EXAMPLE — excluded. Replace.
+SEED-05,ما هي أفضل مطاعم مسقط؟,out_of_domain,refuse_no_content,,,,REGISTRY-AWARE-claude,FORMAT EXAMPLE — excluded. Replace.
+SEED-06,كيف أستخرج شهادة ميلاد؟,unknown_service,refuse_no_content,,,,REGISTRY-AWARE-claude,FORMAT EXAMPLE — covered authority, service not curated. Replace.

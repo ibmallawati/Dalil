@@ -44,11 +44,14 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
 # --- Phase 5: fault tolerance layer ---------------------------------------
-from chatbot.reliability.stage_runner import run_stage, StageStatus, DEFAULT_POLICY, HF_POLICY
+from chatbot.reliability.stage_runner import run_stage, StageStatus, DEFAULT_POLICY, API_POLICY
 from chatbot.reliability.run_record import RunRecord
 
-MODEL_ID = settings.model_id
-client = OpenAI(base_url="https://router.huggingface.co/v1", api_key=settings.hf_token)
+# Provider-neutral generation client. Gemini, Ollama and OpenAI all speak
+# this same chat-completions shape, so which one answers is decided by
+# .env (LLM_BASE_URL / LLM_MODEL), never by editing this file.
+MODEL_ID = settings.llm_model
+client = OpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
 
 # Skip any file that isn't there, so one missing DB doesn't disable them all.
 missing = [p for p in settings.db_paths if not os.path.exists(p)]
@@ -219,7 +222,7 @@ def chat():
         r_route = run_stage(
             "route",
             lambda: route_question(user_message, client, MODEL_ID),
-            policy=HF_POLICY,   # network LLM call -> worth retrying
+            policy=API_POLICY,   # network LLM call -> worth retrying
         )
         run.add(r_route, extra={})
         if r_route.status is StageStatus.FAILED:
@@ -237,7 +240,7 @@ def chat():
                 lambda: answer_question_multi(
                     user_message, SCHEMA_TEXT, client, DB_PATHS, model=MODEL_ID
                 ),
-                policy=HF_POLICY,
+                policy=API_POLICY,
             )
             run.add(r_sql, extra={"sql": (r_sql.payload or {}).get("sql")})
             if r_sql.status is StageStatus.FAILED:
@@ -248,12 +251,13 @@ def chat():
             route = "rag"
 
             # ---- stage: retrieve -------------------------------------------
-            # HF_POLICY because retrieve() calls the HF embed API internally
-            # even though the similarity math itself is local.
+            # DEFAULT_POLICY (no retries): since D1's revision the embedding
+            # model runs in-process, so this stage is pure local compute.
+            # There is no network call here left to flake.
             r_retr = run_stage(
                 "retrieve",
                 lambda: retrieve(user_message) if user_message else [],
-                policy=HF_POLICY,
+                policy=DEFAULT_POLICY,
                 is_empty=lambda res: len(res) == 0,
             )
             chunk_ids = [c["chunk_id"] for c in (r_retr.payload or [])]
@@ -266,7 +270,7 @@ def chat():
             r_gen = run_stage(
                 "generate",
                 lambda: generate_rag_answer(user_message, history, snippets),
-                policy=HF_POLICY,
+                policy=API_POLICY,
             )
             run.add(r_gen, extra={})
             if r_gen.status is StageStatus.FAILED:

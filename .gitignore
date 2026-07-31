@@ -14,3 +14,5 @@ logs/*
 # Pre-reorg local runtime logs, in case any leftover copies exist at root
 /chat_log.csv
 /stage_log.jsonl
+# Claude Code local session files
+.claude/

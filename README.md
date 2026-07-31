@@ -21,8 +21,9 @@ src/chatbot/
   app.py                 # Flask app + routes (entry point: python -m chatbot.app)
   config.py              # env vars read/validated in one place -> `settings`
   logging_config.py       # JSON stdout logging setup
-  rag/retrieval.py        # embeds + retrieves chunks (HF Inference API, no torch)
-  rag/ocr.py               # OCR fallback for scanned PDFs (build-time only)
+  rag/retrieval.py        # embeds + retrieves chunks (LOCAL sentence-transformers)
+  rag/arabic.py            # D3 Arabic normalization, shared by index + query paths
+  rag/ocr.py                # OCR fallback for scanned PDFs (build-time only)
   sql/engine.py             # single-DB text-to-SQL: schema, guard, execute
   sql/multi_db.py            # ATTACHes multiple SQLite files under one connection
   reliability/               # retry/backoff fault-tolerance layer
@@ -122,14 +123,36 @@ most common reason a container "isn't logging" when the code is fine.
 python -m venv venv
 venv\Scripts\activate          # Windows; `source venv/bin/activate` on macOS/Linux
 pip install -e ".[dev]"        # installs the `chatbot` package (editable) + pytest
-cp .env.example .env           # then fill in HF_TOKEN
+cp .env.example .env           # then fill in LLM_API_KEY
 python -m chatbot.app
 ```
 
-Requires a `.env` with `HF_TOKEN` set (Hugging Face token with "Make calls to
-Inference Providers" permission) — see [.env.example](.env.example) for the
-full list of variables `chatbot.config` reads. Logs print as JSON lines to
+Requires a `.env` with `LLM_API_KEY` set — see [.env.example](.env.example) for
+the full list of variables `chatbot.config` reads. Logs print as JSON lines to
 your terminal the same way they do on Render.
+
+### Where the models run
+
+Two model workloads, two very different places:
+
+| Workload | Where it runs | Configured by | Needs network? |
+|---|---|---|---|
+| Generation | remote, OpenAI-**compatible** endpoint | `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY` | yes |
+| Embeddings | **in-process**, sentence-transformers | `EMBED_MODEL`, `EMBED_DIM` | no |
+
+Generation is provider-neutral on purpose: Gemini's free tier today, a local
+Ollama server (`LLM_BASE_URL=http://localhost:11434/v1`) as the offline
+fallback. Swapping between them is a `.env` edit, not a code change.
+
+Embeddings never leave the machine, so retrieval cannot rate-limit, time out,
+or fail on an expired token. The **same** model and the **same** D3
+normalization (`rag/arabic.py`) run at index-build time and at query time —
+if those two paths ever diverge, retrieval degrades with no error and no
+failing test.
+
+The embedding weights download from the HF hub on first use and are then
+cached (`HF_HOME`). That download is free and needs no token — these are
+public models.
 
 ### Running tests
 

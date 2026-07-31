@@ -1,107 +1,231 @@
 """
-Retrieval module - loads a PREBUILT embedding index (no local model, no torch).
+Retrieval module — LOCAL embeddings, prebuilt index, no network.
 
-Embeddings come from the Hugging Face Inference API, so this module has no
-sentence-transformers / torch dependency. That keeps the deployed container
-small enough for free, no-card hosts.
+--- What changed, and why -------------------------------------------------
 
-Query flow (runtime):
-- retrieve() embeds the user's question via the API, then does NumPy cosine
-  similarity against the prebuilt chunk vectors loaded from embeddings.npy.
+This module used to call a remote embedding API so the deployed container
+could stay small enough for a free host. Hosting is no longer a constraint,
+and the project runs under a hard $0 budget, so the model now runs
+IN-PROCESS via sentence-transformers at both index-build time and query
+time.
 
-Build flow (offline, run once whenever the PDFs change):
-- python scripts/build_index.py   ->   regenerates data/index/embeddings.npy + chunks.json
+The consequence is the point: the retrieval path never touches the network.
+It cannot rate-limit, cannot time out, cannot fail because a token expired
+the morning of a demo. The only remote call left in the whole request is
+generation.
 
-Setup: pip install pypdf huggingface_hub numpy
-Requires the HF_TOKEN env var (same token as the chat model; it must have the
-"Make calls to Inference Providers" permission).
+The prebuilt index is still prebuilt (scripts/build_index.py -> npy+json).
+Loading precomputed vectors keeps startup fast; only the QUERY is embedded
+at request time.
+
+--- E5 prefixes: the thing that breaks silently ---------------------------
+
+intfloat/multilingual-e5-* is an asymmetric model. It was trained with
+literal prefixes and expects them:
+
+    documents -> "passage: <text>"
+    questions -> "query: <text>"
+
+Omitting them raises nothing. It just quietly costs retrieval quality, and
+it would do so AFTER D2 has set a threshold and D7 has produced an accuracy
+number — corrupting both without a single error in the logs. That is why
+the prefixes are applied here, inside the only two functions anyone is
+supposed to call, rather than left to each caller to remember.
+
+    embed_query(...)     -> use for questions
+    embed_passages(...)  -> use for corpus text (build_index.py)
 """
 
-import logging
 import json
+import logging
+
 import numpy as np
-from huggingface_hub import InferenceClient
 
 from chatbot.config import settings
+from chatbot.rag.arabic import normalize_arabic
 
 logger = logging.getLogger(__name__)
 
-EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-SIMILARITY_THRESHOLD = 0.30       # minimum score a chunk must reach to be used
+# E5's required asymmetric prefixes. Not stylistic — part of the model.
+QUERY_PREFIX = "query: "
+PASSAGE_PREFIX = "passage: "
 
-# One shared client. Uses the same HF_TOKEN as your chat model.
-_client = InferenceClient(provider="hf-inference", api_key=settings.hf_token)
+_model = None
 
 
-def embed(text):
+def get_model():
     """
-    Return a single L2-normalized 384-dim vector for `text` from the HF API.
+    Load the sentence-transformers model once, on first use.
 
-    Two safety steps make this robust:
-    - if the API returns per-token vectors (2D), mean-pool them into one vector,
-    - normalize the result so a dot product equals cosine similarity (this keeps
-      SIMILARITY_THRESHOLD comparable to your old sentence-transformers scores).
+    Lazy rather than at import: the weights are hundreds of MB, and
+    importing this module must stay cheap for tests, scripts and tooling
+    that only want retrieve()'s helpers or the loaded chunk metadata.
     """
-    vec = np.asarray(
-        _client.feature_extraction(text, model=EMBED_MODEL), dtype=np.float32
+    global _model
+    if _model is None:
+        from sentence_transformers import SentenceTransformer
+
+        logger.info("embedding_model_loading", extra={"model": settings.embed_model})
+        _model = SentenceTransformer(settings.embed_model)
+        dim = _model.get_sentence_embedding_dimension()
+        logger.info(
+            "embedding_model_loaded",
+            extra={"model": settings.embed_model, "dim": dim},
+        )
+        # Catch a model/config mismatch at load, not at the first request.
+        if dim != settings.embed_dim:
+            logger.error(
+                "embed_dim_mismatch",
+                extra={
+                    "configured_embed_dim": settings.embed_dim,
+                    "actual_model_dim": dim,
+                    "hint": "set EMBED_DIM to the model's real width and rebuild the index",
+                },
+            )
+    return _model
+
+
+def _encode(texts, prefix):
+    """
+    Normalize (D3) -> prefix (E5) -> encode -> L2-normalize.
+
+    normalize_embeddings=True means a dot product IS cosine similarity, so
+    retrieve() can use a single matrix multiply instead of dividing by norms
+    on every request.
+    """
+    prepared = [prefix + normalize_arabic(t) for t in texts]
+    vectors = get_model().encode(
+        prepared,
+        normalize_embeddings=True,
+        show_progress_bar=False,
     )
-    if vec.ndim == 2:                     # per-token output -> mean pool
-        vec = vec.mean(axis=0)
-    norm = np.linalg.norm(vec)
-    if norm > 0:
-        vec = vec / norm
-    return vec
+    return np.asarray(vectors, dtype=np.float32)
 
 
-# --- Load the prebuilt index at import time (no PDFs read, no model loaded) ---
+def embed_query(question: str) -> np.ndarray:
+    """Embed ONE user question. Returns a 1-D unit vector."""
+    return _encode([question], QUERY_PREFIX)[0]
+
+
+def embed_passages(texts) -> np.ndarray:
+    """
+    Embed a list of corpus chunks. Returns a 2-D array, one row per text.
+
+    Batched deliberately: build_index.py re-embeds the whole corpus every
+    time the team re-curates a service file, and per-item encoding calls
+    would make that slow enough that people avoid rebuilding.
+    """
+    return _encode(list(texts), PASSAGE_PREFIX)
+
+
+# --- Load the prebuilt index at import time (cheap: numpy + json only) -----
 if settings.index_file.exists() and settings.chunks_file.exists():
     _doc_embeddings = np.load(settings.index_file)
     with open(settings.chunks_file, encoding="utf-8") as f:
         KNOWLEDGE = json.load(f)
-    logger.info(
-        "rag_index_loaded",
-        extra={"chunk_count": len(KNOWLEDGE), "index_file": str(settings.index_file)},
-    )
+
+    # Tripwire. An index built by a different embedding model has a
+    # different width. Without this, the mismatch surfaces either as an
+    # opaque NumPy shape error at request time or — if the widths happen to
+    # agree — as silently meaningless similarity scores, which would poison
+    # D2's threshold and D7's accuracy figure with nothing in the logs.
+    if _doc_embeddings.ndim != 2 or _doc_embeddings.shape[1] != settings.embed_dim:
+        logger.error(
+            "rag_index_dim_mismatch",
+            extra={
+                "index_shape": list(_doc_embeddings.shape),
+                "expected_dim": settings.embed_dim,
+                "hint": "stale index - re-run scripts/build_index.py",
+            },
+        )
+        _doc_embeddings = None
+        KNOWLEDGE = []
+    else:
+        logger.info(
+            "rag_index_loaded",
+            extra={
+                "chunk_count": len(KNOWLEDGE),
+                "dim": int(_doc_embeddings.shape[1]),
+                "index_file": str(settings.index_file),
+            },
+        )
 else:
     _doc_embeddings = None
     KNOWLEDGE = []
     logger.warning(
         "rag_index_missing",
-        extra={"index_file": str(settings.index_file), "chunks_file": str(settings.chunks_file)},
+        extra={
+            "index_file": str(settings.index_file),
+            "chunks_file": str(settings.chunks_file),
+        },
     )
+
+
+def fetch_service(service_id):
+    """
+    Return EVERY section of one service, in the order the curator wrote them.
+
+    No embedding, no similarity, no k. Once L1 has resolved which service the
+    citizen means, similarity search is the wrong tool:
+
+      - D5's answer card has eight fields. Top-k over a seven-section service
+        structurally cannot fill them all. The model then either nulls the
+        missing fields or supplies them from general knowledge — producing an
+        invented fee underneath a real government citation. That is the worst
+        output this system can generate.
+      - A curated service file is 20-40 lines. There is nothing to select
+        from; selection only loses information.
+      - It sidesteps the threshold entirely. The measured in-corpus /
+        out-of-corpus separation on e5 is ~0.015, so for the common case —
+        a question that names its service — no similarity score is consulted
+        at all and that narrow gap simply does not apply.
+
+    Document order matters: sections come back as written (eligibility,
+    documents, steps, fees, ...), which is the order a citizen reads them.
+    """
+    if not KNOWLEDGE:
+        return []
+    return [
+        {**chunk, "chunk_id": i, "score": None, "retrieval": "whole_service"}
+        for i, chunk in enumerate(KNOWLEDGE)
+        if chunk.get("service_id") == service_id
+    ]
 
 
 def retrieve(question, k=3):
     """
-    Return the top-k chunks whose similarity score clears SIMILARITY_THRESHOLD.
-    Each result is a dict with keys: text, source, page, score, chunk_id.
-    Returns an empty list if nothing clears the bar (or if no index is loaded).
+    Return the top-k chunks whose similarity clears the D2 threshold.
+
+    Each result is the stored chunk dict plus `score` and `chunk_id`.
+    Returns [] when nothing clears the bar — that empty list is what drives
+    the D6 refusal paths, so it is a meaningful result, not a failure.
     """
     if _doc_embeddings is None:
         return []
 
-    q_emb = embed(question)
-    similarities = _doc_embeddings @ q_emb          # cosine (vectors are normalized)
-    top_ids = np.argsort(similarities)[::-1][:k]    # top-k indices
+    q_emb = embed_query(question)
+    similarities = _doc_embeddings @ q_emb          # cosine (vectors are unit)
+    top_ids = np.argsort(similarities)[::-1][:k]
 
+    threshold = settings.similarity_threshold
     results = []
     for i in top_ids:
         score = float(similarities[i])
-        # DEBUG, not INFO: this fires per-candidate on every RAG request,
-        # so it'd otherwise drown out real events. Set LOG_LEVEL=DEBUG to see it.
+        # DEBUG, not INFO: this fires per-candidate on every request. Set
+        # LOG_LEVEL=DEBUG to watch scores while tuning the D2 threshold.
         logger.debug(
             "rag_candidate_scored",
             extra={
                 "score": round(score, 4),
+                "threshold": threshold,
                 "chunk_id": int(i),
-                "source": KNOWLEDGE[i]["source"],
-                "page": KNOWLEDGE[i]["page"],
+                "source": KNOWLEDGE[i].get("source"),
             },
         )
-        if score >= SIMILARITY_THRESHOLD:
+        if score >= threshold:
             results.append({
                 **KNOWLEDGE[i],
                 "score": score,
-                "chunk_id": int(i),   # included so app.py can log it
+                "chunk_id": int(i),
             })
     return results
