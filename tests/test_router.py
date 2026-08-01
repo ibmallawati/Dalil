@@ -72,19 +72,19 @@ def test_whole_service_preserves_document_order(spy):
 
 # --- CLARIFY: deterministic, no LLM, no embedding ------------------------
 
-def test_ambiguous_commercial_question_asks_instead_of_guessing(spy):
-    plan = plan_and_gather("أريد تجديد السجل التجاري")
+def test_ambiguous_passport_question_asks_instead_of_guessing(spy):
+    plan = plan_and_gather("أريد جواز سفر")
     assert plan.strategy is Strategy.CLARIFY
     assert spy["fetch_service"] == [] and spy["retrieve"] == []
     assert plan.match.clarify_question_ar
     assert len(plan.match.clarify_options) == 2
     ids = {o["service_id"] for o in plan.match.clarify_options}
-    assert ids == {"mociip-commercial-registration", "mociip-licence-renewal"}
+    assert ids == {"rop-passport-renewal", "rop-passport-new-issuance"}
 
 
 def test_clarify_options_carry_tappable_labels(spy):
     """D4 renders these as buttons, so each option needs Arabic label text."""
-    plan = plan_and_gather("السجل التجاري")
+    plan = plan_and_gather("أريد جواز سفر")
     for option in plan.match.clarify_options:
         assert option["label_ar"].strip()
 
@@ -106,12 +106,16 @@ def test_disambiguators_resolve_without_asking(spy, question, expected_service):
 
 def test_disambiguator_does_not_fire_inside_a_longer_word(spy):
     """
-    «جديد» sits inside «تجديد». Substring matching would resolve "renew my
-    CR" to "register a NEW CR" — exactly backwards. Word boundaries prevent
-    it, so this stays a clarification.
+    «جديد» (new) sits inside «تجديد» (renewal). Substring matching would
+    read "I want to RENEW my passport" as "I want a NEW passport" — exactly
+    backwards, and it would send a citizen down the wrong procedure with a
+    real government citation attached.
+
+    Word-boundary matching on disambiguators is what prevents it.
     """
-    plan = plan_and_gather("أريد تجديد السجل التجاري")
-    assert plan.strategy is Strategy.CLARIFY
+    plan = plan_and_gather("أريد تجديد جواز سفري")
+    assert plan.strategy is Strategy.WHOLE_SERVICE
+    assert spy["fetch_service"] == ["rop-passport-renewal"]
 
 
 # --- SIMILARITY: the fallback, not the main road -------------------------
@@ -281,3 +285,18 @@ def test_unknown_still_falls_through_to_retrieval(spy):
     plan = plan_and_gather("ما الإجراءات المطلوبة قبل الفحص السنوي؟")
     assert plan.match.verdict is Verdict.UNKNOWN
     assert spy["retrieve"], "UNKNOWN must reach retrieval, not refuse"
+
+
+def test_spent_clarify_budget_loads_every_candidate(spy):
+    """
+    With the clarifying budget gone, picking ONE candidate arbitrarily is
+    right about half the time — and when it is wrong, L3 correctly reports
+    it cannot answer, so the citizen gets a refusal for a question the
+    other candidate would have answered.
+
+    Loading both lets the model use whichever actually matches.
+    """
+    plan = plan_and_gather("أريد جواز سفر", allow_clarify=False)
+    assert plan.strategy is Strategy.WHOLE_SERVICE
+    assert set(spy["fetch_service"]) == {
+        "rop-passport-renewal", "rop-passport-new-issuance"}

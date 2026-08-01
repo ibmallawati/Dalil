@@ -1,27 +1,38 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Assistant</title>
+  <title>دليل — مساعد الخدمات الحكومية</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap" rel="stylesheet" />
+  <!-- IBM Plex Sans Arabic: designed for Arabic UI text, not a Latin face
+       with Arabic bolted on. Falls back to the system Arabic stack. -->
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
 <body>
   <main class="chat">
     <header class="chat__header">
-      <span class="status-dot" aria-hidden="true"></span>
-      <div class="chat__title">
-        <h1>Assistant</h1>
-        <p>General knowledge &middot; powered by Hugging Face</p>
+      <div class="chat__brand">
+        <h1>دليل</h1>
+        <p>مساعد الخدمات الحكومية في سلطنة عُمان</p>
+      </div>
+      <!-- Which model answered. Small and quiet, but present: mid-demo it
+           says whether we are on the primary model or already down the
+           failover chain, and a judge seeing a fallback answer with no
+           visible degradation is the resilience argument making itself. -->
+      <div class="chat__meta">
+        <span id="served-by" class="badge badge--idle" title="النموذج الذي أجاب"></span>
       </div>
     </header>
 
     <section id="messages" class="messages" aria-live="polite">
       <div class="msg msg--bot">
-        Hi! Ask me anything &mdash; summarize a paragraph, explain a word, or just chat.
+        <div class="msg__text">
+          مرحباً بك في دليل. اسألني عن إجراءات الخدمات الحكومية —
+          مثل تجديد جواز السفر أو البطاقة الشخصية أو السجل التجاري.
+        </div>
       </div>
     </section>
 
@@ -30,10 +41,10 @@
         id="input"
         class="composer__input"
         type="text"
-        placeholder="Type your message..."
-        aria-label="Type your message"
+        placeholder="اكتب سؤالك هنا..."
+        aria-label="اكتب سؤالك"
       />
-      <button id="send" class="composer__send" type="submit">Send</button>
+      <button id="send" class="composer__send" type="submit">إرسال</button>
     </form>
   </main>
 

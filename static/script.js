@@ -1,104 +1,224 @@
-// Grab the page elements we need.
+// Daleel frontend.
+//
+// The backend is stateless: the whole conversation is sent on every turn.
+// Two extra fields travel with it —
+//   service_id     the citizen tapped a clarifying option; that is their
+//                  answer, so the backend goes straight to that service.
+//   clarify_count  how many clarifying turns have already been spent.
+//
+// D4's "at most one clarifying turn" is enforced SERVER-side using that
+// count. This file reports it honestly; it does not police it. A rule that
+// lives only in browser state stops existing on refresh.
+
 const messagesEl = document.getElementById("messages");
 const formEl = document.getElementById("composer");
 const inputEl = document.getElementById("input");
 const sendBtn = document.getElementById("send");
+const servedByEl = document.getElementById("served-by");
 
-// The full conversation. We send this to the backend on every turn,
-// because the model has no memory of its own.
 const history = [];
+let clarifyCount = 0;
+// The model at the head of the failover chain. The first answer defines it;
+// anything different afterwards means we have fallen down the chain.
+let primaryModel = null;
 
-// Add a message bubble to the screen.
-// `meta` is optional — when present (e.g. "answered in 2.31s"), it's shown
-// as a small muted line under the message text. Only bot bubbles use this.
-function addMessage(role, text, meta) {
-  const bubble = document.createElement("div");
-  bubble.className = "msg " + (role === "user" ? "msg--user" : "msg--bot");
+const FIELD_LABELS = {
+  eligibility: "الفئة المستهدفة",
+  required_documents: "المستندات المطلوبة",
+  steps: "الخطوات",
+  fees: "الرسوم",
+  estimated_time: "المدة المتوقعة",
+  where: "أين تتم المعاملة",
+};
+const ORDERED_FIELDS = [
+  "eligibility", "required_documents", "steps",
+  "fees", "estimated_time", "where",
+];
+const NOT_IN_SOURCE = "غير محدد في المصدر";
+const CONF_LABEL = { high: "معلومات مؤكدة", partial: "معلومات جزئية" };
 
-  const textEl = document.createElement("div");
-  textEl.className = "msg__text";
-  textEl.textContent = text;
-  bubble.appendChild(textEl);
-
-  if (meta) {
-    const metaEl = document.createElement("div");
-    metaEl.className = "msg__meta";
-    metaEl.textContent = meta;
-    bubble.appendChild(metaEl);
-  }
-
-  messagesEl.appendChild(bubble);
-  messagesEl.scrollTop = messagesEl.scrollHeight; // scroll to newest
-  return bubble;
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
 }
 
-// Show an animated "typing..." bubble while we wait for the model.
-function showTyping() {
-  const bubble = document.createElement("div");
-  bubble.className = "msg msg--bot";
-  bubble.innerHTML =
-    '<span class="typing"><span></span><span></span><span></span></span>';
-  messagesEl.appendChild(bubble);
+function bubble(role, extraClass) {
+  const node = el("div", "msg " + (role === "user" ? "msg--user" : "msg--bot"));
+  if (extraClass) node.classList.add(extraClass);
+  messagesEl.appendChild(node);
   messagesEl.scrollTop = messagesEl.scrollHeight;
-  return bubble;
+  return node;
 }
 
-// Replace a typing bubble's contents with the real reply + optional timing.
-function fillBubble(bubble, text, meta) {
-  bubble.innerHTML = ""; // clear the typing dots
+function showTyping() {
+  const node = bubble("bot");
+  const dots = el("span", "typing");
+  dots.append(el("span"), el("span"), el("span"));
+  node.appendChild(dots);
+  return node;
+}
 
-  const textEl = document.createElement("div");
-  textEl.className = "msg__text";
-  textEl.textContent = text;
-  bubble.appendChild(textEl);
+// Which model answered. Quiet, but present: mid-demo it says whether we are
+// on the primary model or already down the failover chain.
+function updateServedBy(model) {
+  if (!model) return;
+  if (!primaryModel) primaryModel = model;
+  servedByEl.textContent = model;
+  servedByEl.className =
+    "badge " + (model === primaryModel ? "badge--primary" : "badge--fallback");
+  servedByEl.title =
+    model === primaryModel
+      ? "النموذج الأساسي"
+      : "نموذج احتياطي — تم التبديل تلقائياً";
+}
 
-  if (meta) {
-    const metaEl = document.createElement("div");
-    metaEl.className = "msg__meta";
-    metaEl.textContent = meta;
-    bubble.appendChild(metaEl);
+function renderField(key, value) {
+  const wrap = el("div", "field");
+  wrap.appendChild(el("div", "field__label", FIELD_LABELS[key]));
+  const body = el("div", "field__value");
+
+  // An unsupported field is styled as a statement about the source rather
+  // than as content. Dropping the row entirely would be worse: a checklist
+  // with no «الرسوم» line reads as "this service is free".
+  if (value === NOT_IN_SOURCE || value === null || value === undefined) {
+    body.classList.add("field__value--missing");
+    body.textContent = NOT_IN_SOURCE;
+  } else if (Array.isArray(value)) {
+    const list = el(key === "steps" ? "ol" : "ul");
+    value.forEach((item) => list.appendChild(el("li", null, item)));
+    body.appendChild(list);
+  } else {
+    body.textContent = value;
   }
+
+  wrap.appendChild(body);
+  return wrap;
 }
 
-// Runs when the user sends a message.
-async function handleSend(event) {
-  event.preventDefault();
-  const text = inputEl.value.trim();
-  if (!text) return;
+function renderCard(node, data) {
+  node.innerHTML = "";
+  const card = el("div", "card");
 
-  // Show the user's message and remember it.
-  addMessage("user", text);
+  const head = el("div", "card__head");
+  if (data.service_name) head.appendChild(el("div", "card__service", data.service_name));
+  if (data.authority) head.appendChild(el("div", "card__authority", data.authority));
+  if (data.confidence && CONF_LABEL[data.confidence]) {
+    head.appendChild(el("span", "conf conf--" + data.confidence, CONF_LABEL[data.confidence]));
+  }
+  card.appendChild(head);
+
+  ORDERED_FIELDS.forEach((key) => card.appendChild(renderField(key, data[key])));
+
+  // Every answer carries its source. This is the visible half of "how do
+  // you know it isn't hallucinating" — and the URL comes from the corpus,
+  // never from the model.
+  if (data.source_url) {
+    const src = el("div", "card__source");
+    src.appendChild(el("span", null, "المصدر: "));
+    const link = el("a", null, data.source_title || data.source_url);
+    link.href = data.source_url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    src.appendChild(link);
+    card.appendChild(src);
+  }
+
+  node.appendChild(card);
+}
+
+function renderClarify(node, data) {
+  node.innerHTML = "";
+  node.appendChild(el("div", "msg__text", data.reply));
+
+  const options = el("div", "options");
+  (data.options || []).forEach((option) => {
+    const btn = el("button", "option", option.label_ar);
+    btn.type = "button";
+    btn.addEventListener("click", () => {
+      // Disable the whole group: the question has been answered, and a
+      // second tap would ask the same thing again.
+      options.querySelectorAll("button").forEach((b) => (b.disabled = true));
+      send(option.label_ar, option.service_id);
+    });
+    options.appendChild(btn);
+  });
+  node.appendChild(options);
+}
+
+function renderReply(node, data) {
+  if (data.format === "card") {
+    renderCard(node, data);
+  } else if (data.format === "clarify") {
+    clarifyCount += 1;
+    renderClarify(node, data);
+  } else {
+    // prose and refusal
+    node.innerHTML = "";
+    if (data.format === "refusal") node.classList.add("msg--refusal");
+    node.appendChild(el("div", "msg__text", data.reply || data.text || ""));
+    if (data.format === "prose" && data.source_url) {
+      const src = el("div", "card__source");
+      src.appendChild(el("span", null, "المصدر: "));
+      const link = el("a", null, data.source_title || data.source_url);
+      link.href = data.source_url;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      src.appendChild(link);
+      node.appendChild(src);
+    }
+  }
+
+  if (typeof data.answer_time === "number") {
+    node.appendChild(el("div", "msg__meta", `أُجيب خلال ${data.answer_time} ثانية`));
+  }
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+async function send(text, serviceId) {
+  const userNode = bubble("user");
+  userNode.appendChild(el("div", "msg__text", text));
   history.push({ role: "user", content: text });
+
   inputEl.value = "";
   sendBtn.disabled = true;
-
-  const typingBubble = showTyping();
+  const typing = showTyping();
 
   try {
-    // Send the whole conversation to our backend.
     const response = await fetch("/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ history: history }),
+      body: JSON.stringify({
+        history: history,
+        service_id: serviceId || null,
+        clarify_count: clarifyCount,
+      }),
     });
     const data = await response.json();
 
-    // Build the timing line, if the backend sent one.
-    // (The error path in app.py doesn't include answer_time, so this
-    // stays blank rather than printing "undefined".)
-    const meta =
-      typeof data.answer_time === "number"
-        ? `⏱ answered in ${data.answer_time}s`
-        : null;
+    updateServedBy(data.served_by);
+    renderReply(typing, data);
 
-    fillBubble(typingBubble, data.reply, meta);
-    history.push({ role: "assistant", content: data.reply });
+    // Only the visible reply goes back into the history. Card fields do
+    // not: re-feeding a rendered checklist as conversational text invites
+    // the model to treat its own earlier output as grounding.
+    history.push({
+      role: "assistant",
+      content: data.reply || data.text || data.service_name || "",
+    });
   } catch (error) {
-    fillBubble(typingBubble, "Network error. Is the server running?", null);
+    typing.innerHTML = "";
+    typing.classList.add("msg--refusal");
+    typing.appendChild(el("div", "msg__text", "تعذّر الاتصال بالخادم. تأكد من تشغيله."));
   } finally {
     sendBtn.disabled = false;
     inputEl.focus();
   }
 }
 
-formEl.addEventListener("submit", handleSend);
+formEl.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const text = inputEl.value.trim();
+  if (text) send(text, null);
+});

@@ -185,3 +185,22 @@ def test_parse_front_matter_returns_body_without_metadata():
     meta, body = parse_front_matter(GOOD, "t.md")
     assert meta["service_id"] == "rop-passport-renewal"
     assert body.lstrip().startswith("# تجديد جواز السفر")
+
+
+def test_unfilled_placeholders_fail_the_build(tmp_path):
+    """
+    The template marks every factual slot with ‹...›. A placeholder that
+    survived into the corpus would be rendered to a citizen as though it
+    were the fee — so an unfinished file must be unindexable, not merely
+    discouraged.
+    """
+    unfinished = GOOD.replace("عشرون ريالاً عمانياً.", "‹المبلغ بالريال العماني›")
+    with pytest.raises(CorpusError, match="placeholder"):
+        load_file(write(tmp_path, unfinished))
+
+
+def test_the_error_names_a_placeholder_so_it_can_be_found(tmp_path):
+    unfinished = GOOD.replace("عشرون ريالاً عمانياً.", "‹المبلغ بالريال العماني›")
+    with pytest.raises(CorpusError) as exc:
+        load_file(write(tmp_path, unfinished))
+    assert "المبلغ بالريال العماني" in str(exc.value)

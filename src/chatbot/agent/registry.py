@@ -40,6 +40,7 @@ claim is made to the panel; this module is what keeps it honest.
 
 import json
 import logging
+import re
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
@@ -183,16 +184,59 @@ def _find(haystack, variants):
     return None
 
 
+# Arabic proclitics: single-letter and two-letter particles that attach to
+# the front of a word. «لتجديد» and «التجديد» are the SAME word as «تجديد»
+# with ل and ال glued on.
+#
+# This list is closed on purpose. «ت» is not in it, so «جديد» still cannot
+# match inside «تجديد» — which is the whole reason word-boundary matching
+# exists here. Widening it to "any prefix" would reintroduce exactly the bug
+# it was written to prevent.
+_PROCLITICS = "|".join(["وال", "بال", "كال", "فال", "ال", "لل", "و", "ف", "ب", "ك", "ل"])
+
+# Punctuation -> space. Arabic comma «،» and question mark «؟» glue to the
+# preceding word, so «منتهي،» would otherwise fail a space-delimited match.
+#
+# \w with re.UNICODE keeps Arabic letters (category Lo) and drops Arabic
+# punctuation (category Po). Writing this as a codepoint range does NOT
+# work: U+0600-U+06FF contains «،» and «؟» alongside the letters, so a
+# range-based "keep" set silently keeps the punctuation too — which is
+# exactly the bug this line replaced.
+_NON_WORD = re.compile(r"[^\w\s]+", re.UNICODE)
+
+_word_cache = {}
+
+
 def _has_word(haystack, phrase):
     """
     Word-boundary containment, used ONLY for disambiguators.
 
-    Disambiguators decide whether to ask the citizen a question, so a false
-    positive silently skips a clarification that was needed. «جديد» must not
-    match inside «تجديد» — which substring matching would do, and which
-    would resolve "renew my CR" to "register a new CR", exactly backwards.
+    Disambiguators decide whether to ask the citizen a question at all, so
+    the two failure modes are opposite and both bad:
+
+      too loose  -> «جديد» matches inside «تجديد», and "I want to RENEW my
+                    passport" resolves to "issue a NEW passport". The
+                    citizen is sent down the wrong procedure with a real
+                    government citation attached.
+
+      too strict -> «لتجديد» and «التجديد» and «منتهي،» all fail to match,
+                    so Daleel asks a clarifying question about a question
+                    that was already perfectly clear. Measured on the first
+                    real corpus file: five of eight plainly-worded passport
+                    questions were being asked to clarify.
+
+    So: strip punctuation, and allow a CLOSED set of Arabic proclitics on
+    the front of the phrase. Nothing else.
     """
-    return f" {phrase} " in f" {haystack} "
+    key = (haystack, phrase)
+    if key in _word_cache:
+        return _word_cache[key]
+
+    cleaned = _NON_WORD.sub(" ", haystack)
+    pattern = rf"(?:^|\s)(?:{_PROCLITICS})?{re.escape(phrase)}(?=\s|$)"
+    result = re.search(pattern, cleaned) is not None
+    _word_cache[key] = result
+    return result
 
 
 def _drop_subsumed(matches):
@@ -263,6 +307,24 @@ def classify(question: str) -> RegistryMatch:
     # whole question because a second, uncovered authority appeared would
     # withhold an answer it actually has.
 
+    if clarify and clarify.get("resolved"):
+        # Disambiguated by the citizen's own wording. This is a resolution,
+        # not an ambiguity, so it goes straight to that one service.
+        authority = next(a for a in _COVERED if a["id"] == clarify["authority_id"])
+        option = clarify["resolved"]
+        return RegistryMatch(
+            verdict=Verdict.COVERED,
+            authority_id=authority["id"],
+            authority_ar=authority["name_ar"],
+            authority_en=authority["name_en"],
+            portal_url=authority["portal_url"],
+            service_id=option["service_id"],
+            service_ar=option["label_ar"],
+            matched_on=clarify["matched_on"],
+            candidate_service_ids=(option["service_id"],),
+            also_mentioned_uncovered_ar=uncovered_hit[0]["name_ar"] if uncovered_hit else None,
+        )
+
     if clarify:
         authority = next(a for a in _COVERED if a["id"] == clarify["authority_id"])
         return RegistryMatch(
@@ -325,8 +387,22 @@ def classify(question: str) -> RegistryMatch:
 
 def _resolve_ambiguity(haystack):
     """
-    Return clarification data when a declared ambiguous phrase fired and
-    its disambiguators did not settle it. None otherwise.
+    Handle a declared ambiguous phrase. Returns one of:
+
+      {"resolved": service_id, ...}   disambiguators settled it -> answer
+      {"options": [...], ...}         still ambiguous -> ask
+      None                            no trigger phrase present
+
+    The 'resolved' case must carry the service_id it resolved TO. An
+    earlier version returned None there — meaning "not ambiguous" — and let
+    ordinary variant matching pick the service up afterwards. That silently
+    depended on the phrase being BOTH an ambiguity trigger and a service
+    variant, and the moment it was only a trigger, «كيف أجدد جواز سفري؟»
+    resolved correctly to renewal and then fell all the way through to the
+    similarity fallback, losing sections and reporting fees it had.
+
+    Disambiguation is a decision. Discarding it and hoping something
+    downstream repeats it is not.
     """
     for entry in _AMBIGUOUS:
         hit = _find(haystack, entry["triggers"])
@@ -336,14 +412,16 @@ def _resolve_ambiguity(haystack):
             option for option in entry["options"]
             if any(_has_word(haystack, d) for d in option["disambiguators"])
         ]
-        if len(resolved) == 1:
-            return None          # the citizen already said which one
-        return {
+        base = {
             "authority_id": entry["authority_id"],
             "question_ar": entry["question_ar"],
             "options": entry["options"],
             "matched_on": hit[1],
         }
+        if len(resolved) == 1:
+            # The citizen already said which one they meant.
+            return {**base, "resolved": resolved[0]}
+        return base
     return None
 
 

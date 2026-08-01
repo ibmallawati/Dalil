@@ -34,7 +34,12 @@
         {
           "service_id": "rop-passport-renewal",
           "name_ar": "تجديد جواز السفر",
-          "variants": ["جواز السفر", "جواز سفر", "الجواز", "جوازي", "جوازات", "باسبور", "passport"]
+          "variants": ["تجديد جواز السفر", "تجديد الجواز", "تجديد جوازي", "جواز منتهي"]
+        },
+        {
+          "service_id": "rop-passport-new-issuance",
+          "name_ar": "إصدار جواز سفر جديد",
+          "variants": ["اصدار جواز", "جواز جديد", "جواز لاول مرة", "استخراج جواز"]
         },
         {
           "service_id": "rop-id-renewal",
@@ -69,9 +74,19 @@
       ],
       "services": [
         {
+          "service_id": "mociip-commercial-register-renewal",
+          "name_ar": "تجديد السجل التجاري",
+          "variants": ["تجديد السجل التجاري", "تجديد سجلي التجاري", "تجديد سجل تجاري", "سجلي التجاري", "السجل التجاري", "سجل تجاري منتهي"]
+        },
+        {
+          "service_id": "mociip-home-business-register",
+          "name_ar": "إنشاء سجل تجاري للأعمال المنزلية",
+          "variants": ["الاعمال المنزلية", "سجل تجاري منزلي", "عمل من المنزل", "مشروع منزلي", "سجل منزلي", "home business"]
+        },
+        {
           "service_id": "mociip-commercial-registration",
           "name_ar": "تسجيل سجل تجاري جديد",
-          "variants": ["سجل تجاري", "السجل التجاري", "تسجيل شركة", "تأسيس شركة", "افتح شركة", "commercial registration"]
+          "variants": ["تسجيل شركة", "تأسيس شركة", "افتح شركة", "سجل تجاري جديد", "تأسيس سجل تجاري", "أؤسس سجل تجاري", "تسجيل سجل تجاري", "commercial registration"]
         },
         {
           "service_id": "mociip-licence-renewal",
@@ -102,32 +117,35 @@
 
   "ambiguous_phrases": [
     {
-      "id": "mociip-registration-vs-renewal",
-      "authority_id": "mociip",
-      "trigger_phrases": [
-        "السجل التجاري",
-        "سجل تجاري",
-        "الرخصة التجارية",
-        "رخصة تجارية",
-        "رخصتي التجارية",
-        "سجلي التجاري"
+      "_comment": [
+        "REAL ambiguity, from the official ROP passport page. New issuance",
+        "and renewal are different procedures on the SAME page: new issuance",
+        "for an under-18 must be submitted by the guardian, renewal by the",
+        "applicant themselves. «أريد جواز سفر» genuinely does not say which,",
+        "and answering either one confidently would be wrong half the time."
       ],
-      "question_ar": "هل تقصد تسجيل سجل تجاري جديد، أم تجديد رخصة قائمة؟",
+      "id": "rop-passport-new-vs-renewal",
+      "authority_id": "rop",
+      "trigger_phrases": [
+        "جواز السفر",
+        "جواز سفر",
+        "الجواز",
+        "جوازي",
+        "جواز",
+        "باسبور",
+        "passport"
+      ],
+      "question_ar": "هل تقصد تجديد جواز سفر قائم، أم إصدار جواز سفر جديد لأول مرة؟",
       "options": [
         {
-          "label_ar": "تسجيل سجل تجاري جديد",
-          "service_id": "mociip-commercial-registration",
-          "disambiguators": [
-            "جديد", "جديدة", "اول مرة",
-            "تسجيل", "أسجل", "اسجل",
-            "تأسيس", "أؤسس", "اؤسس", "اسس",
-            "انشاء", "إنشاء", "افتح", "افتتاح"
-          ]
+          "label_ar": "تجديد جواز سفر قائم",
+          "service_id": "rop-passport-renewal",
+          "disambiguators": ["تجديد", "اجدد", "أجدد", "منتهي", "منتهية", "قائم", "تمديد"]
         },
         {
-          "label_ar": "تجديد رخصة قائمة",
-          "service_id": "mociip-licence-renewal",
-          "disambiguators": ["تجديد الرخصة", "تجديد رخصة", "رخصة قائمة", "قائم", "قائمة", "منتهية"]
+          "label_ar": "إصدار جواز سفر جديد",
+          "service_id": "rop-passport-new-issuance",
+          "disambiguators": ["اصدار", "إصدار", "جديد", "جديدة", "اول مرة", "استخراج", "مولود"]
         }
       ]
     }

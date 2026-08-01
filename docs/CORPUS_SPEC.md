@@ -74,11 +74,29 @@ verified_by: اسم الشخص
 | `authority` | Arabic name of the authority | Must match a covered authority in `data/registry/authorities.json` |
 | `authority_en` | English name | Used in logs and when explaining coverage to the panel |
 | `service` | Arabic name of the service | As the citizen would recognise it |
-| `service_id` | stable slug | Same as the filename, without `.md`. Never change it once set |
+| `service_id` | stable slug | **Must equal the filename without `.md`.** The build fails otherwise |
 | `source_url` | **full** URL of the official page | **Daleel cites this to the citizen.** Must start with `http` |
 | `source_title` | title of the official page | As published |
 | `retrieved` | ISO date `YYYY-MM-DD` | The day you copied the content |
 | `verified_by` | who checked it | A real name. `PENDING` builds, but logs a warning |
+
+### `service_id` is a join key, not a label
+
+`service_id` is what connects this file to `data/registry/authorities.json`. The router
+resolves a `service_id` from the registry, then asks the corpus for chunks carrying that
+exact string.
+
+One character of drift breaks it silently. On the first real corpus file, `service_id`
+was written `rop_passport_renewal` while the registry said `rop-passport-renewal`. The
+build passed, the file indexed cleanly, and the only symptom was that the service
+refused every question — with the correct file sitting right there.
+
+The build now rejects a mismatch, and prints a registry reconciliation showing which
+declared services have content and which do not.
+
+**Two services may share one `source_url`** — new issuance and renewal both live on the
+same official ROP page. That is fine: they are separate files with separate
+`service_id`s, and each cites the same URL.
 
 **`source_url` is not decoration.** D5 renders it as the answer's citation, which is how
 Daleel demonstrates it is not hallucinating. A file with a homepage URL instead of the

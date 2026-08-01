@@ -127,6 +127,27 @@ def validate_front_matter(meta, path_label="<string>"):
             f"{path_label}: source_url must be a full URL (D5 cites it "
             f"directly to the citizen), got: {url!r}"
         )
+
+    # service_id must equal the filename stem.
+    #
+    # This is not tidiness. service_id is the join key between the corpus
+    # and data/registry/authorities.json: the router resolves a service_id
+    # from the registry, then asks the corpus for chunks with that exact
+    # string. One character of drift — rop_passport_renewal against
+    # rop-passport-renewal — and the service refuses every question while
+    # the file sits right there, fully indexed, looking correct.
+    #
+    # Observed for real on the first curated file. The build passed
+    # silently and the only symptom was an unexplained refusal.
+    stem = Path(path_label).stem
+    service_id = str(meta["service_id"]).strip()
+    if stem and service_id != stem:
+        raise CorpusError(
+            f"{path_label}: service_id is {service_id!r} but the filename is "
+            f"{stem!r}. They must match exactly — service_id is the join key "
+            f"to data/registry/authorities.json, and a mismatch makes this "
+            f"service refuse every question. See docs/CORPUS_SPEC.md."
+        )
     return meta
 
 
@@ -191,6 +212,18 @@ def load_file(path):
             "corpus_unverified_file",
             extra={"file": label, "verified_by": meta.get("verified_by"),
                    "hint": "nobody has checked these facts against the official page"},
+        )
+
+    # An unfinished file must not be indexable. The template marks every
+    # factual slot with ‹...›, and a placeholder that survives into the
+    # corpus would be rendered to a citizen as though it were the fee.
+    # Cheap to detect, embarrassing to discover on stage.
+    placeholders = re.findall(r"‹[^›]*›", body)
+    if placeholders:
+        raise CorpusError(
+            f"{label}: {len(placeholders)} unfilled placeholder(s) still in the "
+            f"file, e.g. {placeholders[0]!r}. Replace every ‹...› with what the "
+            f"official page actually says before building."
         )
 
     chunks = []

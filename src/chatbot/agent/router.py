@@ -84,14 +84,32 @@ class RetrievalPlan:
         return bool(self.chunks)
 
 
-def plan_and_gather(question: str) -> RetrievalPlan:
+def plan_and_gather(question: str, *, service_id=None, allow_clarify=True) -> RetrievalPlan:
     """
     Run L1, pick a strategy, and gather grounding accordingly.
 
     Returns everything the generation stage needs, plus the reason it was
     chosen — so a log line explains not just what Daleel answered but why
     it looked where it looked.
+
+    `service_id` — the citizen tapped a clarifying option. Their choice is
+    an answer, not a hint, so it goes straight to that service and no
+    further classification runs.
+
+    `allow_clarify` — D4 permits at most ONE clarifying turn. This is
+    enforced HERE rather than in the browser: an agent that interrogates a
+    judge for three rounds reads as broken, and a rule that lives only in
+    frontend state is one refresh away from not existing.
     """
+    if service_id:
+        chunks = fetch_service(service_id)
+        logger.info("route_clarified_choice",
+                    extra={"service_id": service_id, "sections": len(chunks)})
+        match = registry.classify(question)
+        if not chunks:
+            return RetrievalPlan(Strategy.REFUSE_NO_CONTENT, match)
+        return RetrievalPlan(Strategy.WHOLE_SERVICE, match, tuple(chunks))
+
     match = registry.classify(question)
 
     # 1. A different authority, and nothing covered alongside it.
@@ -103,6 +121,25 @@ def plan_and_gather(question: str) -> RetrievalPlan:
     # 2. Genuinely two services in play. Ask, don't guess — and do it
     #    without an LLM call, so it cannot rate-limit mid-demo.
     if match.needs_clarification:
+        if not allow_clarify:
+            # One clarifying turn has already been spent, and asking again
+            # is the failure D4's limit exists to prevent.
+            #
+            # Load EVERY candidate service rather than picking one. Picking
+            # arbitrarily gets it right half the time, and when it is wrong
+            # L3 correctly reports it cannot answer — so the citizen gets a
+            # refusal for a question Daleel could have answered from the
+            # other candidate. Giving the model both lets it answer from
+            # whichever actually matches.
+            chunks = []
+            for candidate in match.candidate_service_ids:
+                chunks.extend(fetch_service(candidate))
+            logger.info("route_clarify_budget_spent",
+                        extra={"candidates": list(match.candidate_service_ids),
+                               "sections": len(chunks)})
+            if chunks:
+                return RetrievalPlan(Strategy.WHOLE_SERVICE, match, tuple(chunks))
+            return RetrievalPlan(Strategy.REFUSE_NO_CONTENT, match)
         logger.info("route_clarify",
                     extra={"candidates": list(match.candidate_service_ids),
                            "matched_on": match.matched_on})

@@ -142,7 +142,10 @@ def test_the_two_refusals_say_different_things():
 def test_coverage_summary_reports_scope():
     summary = coverage_summary()
     assert summary["authority_count"] == 2
-    assert summary["service_count"] == 6
+    # 9: passport split into renewal + new issuance, and MoCIIP gained the
+    # two services gov.om actually publishes (register renewal, home
+    # business) alongside the two still declared but uncurated.
+    assert summary["service_count"] == 9
     assert summary["known_uncovered_count"] > 0
     ids = {a["id"] for a in summary["authorities"]}
     assert ids == {"rop", "mociip"}
@@ -162,14 +165,94 @@ def test_registry_service_ids_match_the_corpus_spec_naming():
 
 # --- The MoCIIP collision that D4 will need ------------------------------
 
-def test_ambiguous_commercial_question_surfaces_both_candidates():
+def test_question_naming_two_services_surfaces_both_candidates():
     """
-    «السجل التجاري» and «الرخصة التجارية» are genuinely confused by real
-    citizens. The registry does not resolve that ambiguity -- it reports
-    it, so D4 can ask the clarifying question instead of guessing.
+    A question naming more than one covered service reports ALL of them.
+    That list is what the margin check and D4 consume; collapsing it to
+    top-1 here would hide the ambiguity from every layer above.
     """
     match = classify("أريد تجديد السجل التجاري والرخصة التجارية")
     assert match.verdict is Verdict.COVERED
     assert len(match.candidate_service_ids) >= 2
-    assert "mociip-commercial-registration" in match.candidate_service_ids
+    assert "mociip-commercial-register-renewal" in match.candidate_service_ids
     assert "mociip-licence-renewal" in match.candidate_service_ids
+
+
+# --- Disambiguation is a RESOLUTION, not a non-event ---------------------
+
+def test_disambiguated_phrase_resolves_to_its_service():
+    """
+    Regression. An earlier version returned "not ambiguous" when the
+    disambiguators settled it, and left ordinary variant matching to pick
+    the service up afterwards. That worked only while the phrase was BOTH
+    an ambiguity trigger AND a service variant.
+
+    On the first real corpus file it was only a trigger, so
+    «كيف أجدد جواز سفري؟» disambiguated to renewal and then fell all the
+    way through to the similarity fallback — losing sections and reporting
+    «غير محدد في المصدر» for fees the corpus actually had.
+    """
+    match = classify("كيف أجدد جواز سفري؟")
+    assert match.verdict is Verdict.COVERED
+    assert match.service_id == "rop-passport-renewal"
+    assert not match.needs_clarification
+
+
+def test_new_issuance_wording_resolves_the_other_way():
+    match = classify("أريد إصدار جواز سفر جديد")
+    assert match.service_id == "rop-passport-new-issuance"
+    assert not match.needs_clarification
+
+
+def test_bare_passport_request_is_genuinely_ambiguous():
+    """
+    «أريد جواز سفر» does not say new or renewal, and the two procedures
+    differ: an under-18 new issuance must be submitted by the guardian,
+    a renewal by the applicant themselves.
+    """
+    match = classify("أريد جواز سفر")
+    assert match.needs_clarification
+    assert set(match.candidate_service_ids) == {
+        "rop-passport-renewal", "rop-passport-new-issuance"}
+
+
+# --- Disambiguator matching: neither too loose nor too strict ------------
+
+@pytest.mark.parametrize("question", [
+    "ما المستندات المطلوبة لتجديد الجواز؟",     # ل proclitic
+    "وين أستلم الجواز بعد التجديد؟",            # ال proclitic
+    "جوازي منتهي، شو أسوي؟",                    # Arabic comma glued on
+    "كم أدفع لتجديد جواز سفر طفلي؟",            # ل proclitic
+    "أريد تجديد جواز سفري",                     # bare
+])
+def test_clear_renewal_wording_never_asks_to_clarify(question):
+    """
+    The too-strict half. Arabic glues proclitics (ل، ال، ب، و) onto words
+    and punctuation onto their tails, so plain space-delimited matching
+    fails on wording that is completely unambiguous to a reader.
+
+    Measured before this fix: five of eight plainly-worded passport
+    questions were being asked to clarify. An agent that interrogates
+    someone who already answered reads as broken.
+    """
+    match = classify(question)
+    assert not match.needs_clarification, question
+    assert match.service_id == "rop-passport-renewal"
+
+
+def test_new_issuance_wording_still_resolves_the_other_way():
+    for question in ["أريد إصدار جواز سفر جديد", "استخراج جواز لمولود جديد"]:
+        assert classify(question).service_id == "rop-passport-new-issuance"
+
+
+def test_proclitic_tolerance_does_not_reintroduce_the_substring_bug():
+    """
+    THE constraint. «ت» is not a proclitic, so «جديد» must still fail to
+    match inside «تجديد» — otherwise "renew" resolves to "new", exactly
+    backwards, which is the bug word-boundary matching was added to stop.
+    """
+    from chatbot.agent.registry import _has_word
+    assert not _has_word("اريد تجديد جواز سفري", "جديد")
+    assert _has_word("اريد تجديد جواز سفري", "تجديد")
+    assert _has_word("لتجديد الجواز", "تجديد")
+    assert _has_word("جوازي منتهي، شو اسوي", "منتهي")

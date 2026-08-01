@@ -135,7 +135,47 @@ def assert_fixtures_quarantined(records, out_dir):
         )
 
 
-# --- Main ----------------------------------------------------------------
+def report_registry_coverage(corpus_service_ids):
+    """
+    Reconcile the corpus against the registry, in both directions.
+
+    These two files are joined only by the service_id string, and drift
+    between them is silent: the app keeps running and simply refuses.
+    Printing the comparison at build time makes the state of the corpus
+    visible at the moment someone can act on it.
+    """
+    try:
+        from chatbot.agent import registry
+    except Exception as exc:      # registry file missing/broken: not fatal here
+        print(f"\n(could not read the registry: {exc})")
+        return
+
+    declared = {s for a in registry.coverage_summary()["authorities"]
+                for s in a["services"]}
+    have = set(corpus_service_ids)
+
+    unroutable = sorted(have - declared)
+    missing = sorted(declared - have)
+
+    print(f"\nregistry check: {len(have & declared)}/{len(declared)} declared "
+          f"services have content")
+
+    if unroutable:
+        # Content nothing can ever reach. Always a bug worth naming.
+        print("  UNROUTABLE — indexed but not declared in the registry, so no")
+        print("  question can ever be routed to it:")
+        for s in unroutable:
+            print(f"    - {s}")
+        print("  Fix: add it to data/registry/authorities.json, or correct the")
+        print("  service_id so it matches an existing entry.")
+
+    if missing:
+        # Expected while curating: the registry declares the target scope
+        # and the corpus fills in behind it.
+        print("  NO CONTENT YET — declared in the registry, no file in the")
+        print("  corpus. These correctly answer with a refusal until curated:")
+        for s in missing:
+            print(f"    - {s}")
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
@@ -179,6 +219,8 @@ def main():
     for s in services:
         n = sum(1 for r in records if r.get("service_id", r.get("source")) == s)
         print(f"  {n:3d}  {s}")
+
+    report_registry_coverage(services)
 
     print(f"\nEmbedding {len(records)} chunks locally ...")
     # embed_passages applies D3 normalization and the E5 "passage: " prefix.
