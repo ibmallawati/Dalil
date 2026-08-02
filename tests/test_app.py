@@ -70,10 +70,10 @@ def test_uncovered_authority_returns_a_refusal_not_an_empty_card(client):
     differently, and a citizen reading empty rows would think the service
     has no fees rather than that Daleel has no information.
     """
-    data = ask(client, "كيف أحجز موعد في وزارة الصحة؟")
+    data = ask(client, "أريد شكوى في وزارة العمل")
     assert data["format"] == "refusal"
     assert data["reason"] == "uncovered_authority"
-    assert "وزارة الصحة" in data["reply"]
+    assert "وزارة العمل" in data["reply"]
     assert "fees" not in data
 
 
@@ -200,7 +200,7 @@ def test_refusal_and_clarify_never_call_the_model(client, monkeypatch):
     def explode(*a, **k):
         raise AssertionError("generation must not run for this strategy")
     monkeypatch.setattr(app_module, "generate_answer", explode)
-    assert ask(client, "كيف أحجز موعد في وزارة الصحة؟")["format"] == "refusal"
+    assert ask(client, "أريد شكوى في وزارة العمل")["format"] == "refusal"
     assert ask(client, "أريد جواز سفر")["format"] == "clarify"
 
 
@@ -209,6 +209,6 @@ def test_refusal_and_clarify_never_call_the_model(client, monkeypatch):
 def test_healthz_reports_coverage_and_models(client):
     data = client.get("/healthz").get_json()
     assert data["status"] == "ok"
-    assert data["coverage"]["authority_count"] == 2
-    assert data["coverage"]["service_count"] == 9
+    assert data["coverage"]["authority_count"] == 4
+    assert data["coverage"]["service_count"] == 17
     assert isinstance(data["models_available"], list)

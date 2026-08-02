@@ -52,9 +52,24 @@
           "variants": ["ملكية المركبة", "ملكية السيارة", "استمارة السيارة", "استمارة المركبة", "ملكية سيارتي", "تسجيل المركبة", "تجديد الملكية", "الفحص الفني", "المرور"]
         },
         {
-          "service_id": "rop-driving-licence",
-          "name_ar": "تجديد رخصة القيادة",
-          "variants": ["رخصة القيادة", "رخصة قيادة", "رخصة السياقة", "رخصتي", "driving licence", "driving license"]
+          "service_id": "rop-driving-licence-renewal",
+          "name_ar": "تجديد رخصة السياقة",
+          "variants": ["تجديد رخصة السياقة", "تجديد رخصة القيادة", "تجديد رخصتي", "رخصة سياقة منتهية", "رخصتي منتهية"]
+        },
+        {
+          "service_id": "rop-driving-licence-new",
+          "name_ar": "إصدار رخصة سياقة جديدة",
+          "variants": ["اصدار رخصة سياقة", "رخصة سياقة جديدة", "رخصة قيادة جديدة", "استخراج رخصة سياقة"]
+        },
+        {
+          "service_id": "rop-vehicle-ownership-transfer",
+          "name_ar": "نقل سجل المركبة",
+          "variants": ["نقل ملكية", "نقل سجل المركبة", "نقل المركبة", "بيع سيارتي", "شراء سيارة", "تحويل الملكية"]
+        },
+        {
+          "service_id": "rop-birth-certificate",
+          "name_ar": "استخراج شهادة ميلاد",
+          "variants": ["شهادة ميلاد", "شهادة الميلاد", "قيد المواليد", "تسجيل مولود", "birth certificate"]
         }
       ]
     },
@@ -92,6 +107,59 @@
           "service_id": "mociip-licence-renewal",
           "name_ar": "تجديد الرخصة التجارية",
           "variants": ["الرخصة التجارية", "رخصة تجارية", "رخصتي التجارية", "trade licence", "trade license"]
+        }
+      ]
+    },
+    {
+      "id": "moh",
+      "name_ar": "وزارة الصحة",
+      "name_en": "Ministry of Health",
+      "portal_url": "https://www.moh.gov.om",
+      "variants": [
+        "وزارة الصحة",
+        "الصحة",
+        "ministry of health"
+      ],
+      "services": [
+        {
+          "service_id": "moh-lab-analysis-certificate",
+          "name_ar": "شهادة تحليل من المختبر",
+          "variants": ["شهادة تحليل", "تحليل من المختبر", "شهادة المختبر", "تحاليل مخبرية"]
+        },
+        {
+          "service_id": "moh-pharmaceutical-product-certificate",
+          "name_ar": "شهادة منتج صيدلاني",
+          "variants": ["منتج صيدلاني", "شهادة صيدلانية", "شهادة دواء", "pharmaceutical certificate"]
+        }
+      ]
+    },
+    {
+      "id": "mohup",
+      "name_ar": "وزارة الإسكان والتخطيط العمراني",
+      "name_en": "Ministry of Housing and Urban Planning",
+      "_portal_note": "The ministry has no reachable domain of its own (housing.gov.om -> 502, mohup/mohu/mh.gov.om -> DNS failure, checked 2 Aug 2026). The national portal is used instead, which is also where its services are actually published.",
+      "portal_url": "https://gov.om",
+      "variants": [
+        "وزارة الإسكان والتخطيط العمراني",
+        "وزارة الاسكان",
+        "الاسكان والتخطيط العمراني",
+        "ministry of housing"
+      ],
+      "services": [
+        {
+          "service_id": "mohup-buy-residential-land",
+          "name_ar": "اشترِ أرضك السكنية",
+          "variants": ["شراء ارض سكنية", "اشتري ارض", "ارض سكنية", "شراء اراضي"]
+        },
+        {
+          "service_id": "mohup-exchange-land",
+          "name_ar": "استبدل أرضك",
+          "variants": ["استبدال الارض", "استبدال ارضي", "استبدل ارضي", "تبديل الارض", "استبدال اراضي"]
+        },
+        {
+          "service_id": "mohup-plan-residential-land",
+          "name_ar": "خطط أرضك السكنية",
+          "variants": ["تخطيط الارض", "خطط ارضي", "تخطيط ارض سكنية", "مخطط الارض"]
         }
       ]
     }
@@ -148,20 +216,50 @@
           "disambiguators": ["اصدار", "إصدار", "جديد", "جديدة", "اول مرة", "استخراج", "مولود"]
         }
       ]
+    },
+    {
+      "_comment": [
+        "Second REAL ambiguity, same shape as the passport one and from the",
+        "same site: rop.gov.om publishes driver_license_renewal.aspx and",
+        "new_driving_license.aspx as separate services with different",
+        "conditions — renewal needs a valid eye test and a clean record,",
+        "new issuance needs having passed the final driving test.",
+        "«رخصة السياقة» alone does not say which."
+      ],
+      "id": "rop-driving-licence-new-vs-renewal",
+      "authority_id": "rop",
+      "trigger_phrases": [
+        "رخصة السياقة",
+        "رخصة القيادة",
+        "رخصة سياقة",
+        "رخصة قيادة",
+        "رخصتي",
+        "driving licence",
+        "driving license"
+      ],
+      "question_ar": "هل تقصد تجديد رخصة سياقة قائمة، أم إصدار رخصة سياقة جديدة؟",
+      "options": [
+        {
+          "label_ar": "تجديد رخصة سياقة قائمة",
+          "service_id": "rop-driving-licence-renewal",
+          "disambiguators": ["تجديد", "اجدد", "أجدد", "منتهي", "منتهية", "قائم", "قائمة", "تمديد"]
+        },
+        {
+          "label_ar": "إصدار رخصة سياقة جديدة",
+          "service_id": "rop-driving-licence-new",
+          "disambiguators": ["اصدار", "إصدار", "جديد", "جديدة", "اول مرة", "استخراج", "اختبار"]
+        }
+      ]
     }
   ],
 
   "not_covered": [
-    { "name_ar": "وزارة الصحة", "name_en": "Ministry of Health",
-      "variants": ["وزارة الصحة", "الصحة", "المستشفى", "المستشفيات", "ministry of health"] },
     { "name_ar": "وزارة التربية والتعليم", "name_en": "Ministry of Education",
       "variants": ["وزارة التربية والتعليم", "وزارة التربية", "التربية والتعليم", "المدرسة", "ministry of education"] },
     { "name_ar": "وزارة التعليم العالي والبحث العلمي والابتكار", "name_en": "Ministry of Higher Education, Research and Innovation",
       "variants": ["وزارة التعليم العالي", "التعليم العالي", "moheri"] },
     { "name_ar": "وزارة العمل", "name_en": "Ministry of Labour",
       "variants": ["وزارة العمل", "ministry of labour", "ministry of labor"] },
-    { "name_ar": "وزارة الإسكان والتخطيط العمراني", "name_en": "Ministry of Housing and Urban Planning",
-      "variants": ["وزارة الاسكان", "الاسكان والتخطيط العمراني", "ministry of housing"] },
     { "name_ar": "وزارة الأوقاف والشؤون الدينية", "name_en": "Ministry of Endowments and Religious Affairs",
       "variants": ["وزارة الاوقاف", "الاوقاف والشؤون الدينية"] },
     { "name_ar": "وزارة المالية", "name_en": "Ministry of Finance",

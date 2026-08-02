@@ -64,7 +64,9 @@ def test_whole_service_chunks_have_no_score(spy):
 
 def test_whole_service_preserves_document_order(spy):
     """Sections come back as the curator wrote them: the reading order."""
-    plan = plan_and_gather("متى تنتهي رخصة القيادة؟")
+    # A DISAMBIGUATED question: «رخصة السياقة» alone is now a declared
+    # ambiguity (renewal vs new issuance) and would clarify instead.
+    plan = plan_and_gather("أريد تجديد رخصة السياقة")
     sections = [c["section"] for c in plan.chunks]
     assert sections[0] == "الفئة المستهدفة"
     assert sections.index("المستندات المطلوبة") < sections.index("الرسوم")
@@ -142,7 +144,7 @@ def test_similarity_returning_nothing_becomes_a_refusal(spy, monkeypatch):
 # --- Refusals ------------------------------------------------------------
 
 def test_uncovered_authority_refuses_without_touching_retrieval(spy):
-    plan = plan_and_gather("كيف أحجز موعد في وزارة الصحة؟")
+    plan = plan_and_gather("أريد شكوى في وزارة العمل")
     assert plan.strategy is Strategy.REFUSE_UNCOVERED
     assert plan.is_refusal
     assert spy["fetch_service"] == [] and spy["retrieve"] == []
@@ -167,7 +169,7 @@ def test_covered_service_beats_an_uncovered_authority_in_the_same_question(spy):
     HAS. Refusing the whole question because a second, uncovered authority
     was mentioned would withhold an answer it could give.
     """
-    plan = plan_and_gather("أريد تجديد جواز سفري ثم مراجعة وزارة الصحة")
+    plan = plan_and_gather("أريد تجديد جواز سفري ثم مراجعة وزارة العمل")
     assert plan.match.verdict is Verdict.COVERED
     assert plan.strategy is Strategy.WHOLE_SERVICE
     assert spy["fetch_service"] == ["rop-passport-renewal"]
@@ -179,8 +181,8 @@ def test_the_uncovered_authority_is_still_recorded_for_a_footnote(spy):
     answer should be able to say so rather than silently ignore half the
     question.
     """
-    plan = plan_and_gather("أريد تجديد جواز سفري ثم مراجعة وزارة الصحة")
-    assert plan.match.also_mentioned_uncovered_ar == "وزارة الصحة"
+    plan = plan_and_gather("أريد تجديد جواز سفري ثم مراجعة وزارة العمل")
+    assert plan.match.also_mentioned_uncovered_ar == "وزارة العمل"
 
 
 def test_no_footnote_when_nothing_uncovered_was_mentioned(spy):

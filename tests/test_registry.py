@@ -25,7 +25,8 @@ from chatbot.agent.registry import (
     ("ما هي رسوم تجديد الجواز؟", "rop-passport-renewal"),
     ("أريد تجديد البطاقة الشخصية", "rop-id-renewal"),
     ("كيف اجدد ملكية سيارتي؟", "rop-vehicle-registration-renewal"),
-    ("متى تنتهي رخصة القيادة؟", "rop-driving-licence"),
+    ("أريد تجديد رخصة السياقة", "rop-driving-licence-renewal"),
+    ("أريد إصدار رخصة سياقة جديدة", "rop-driving-licence-new"),
     ("كيف أسجل سجل تجاري جديد؟", "mociip-commercial-registration"),
     ("أريد تجديد الرخصة التجارية القائمة", "mociip-licence-renewal"),
 ])
@@ -73,7 +74,6 @@ def test_longest_variant_wins():
 # --- UNCOVERED_AUTHORITY: the only verdict that refuses without retrieving
 
 @pytest.mark.parametrize("question,expected_ar", [
-    ("كيف أحجز موعد في وزارة الصحة؟", "وزارة الصحة"),
     ("ما هي إجراءات التسجيل في وزارة التربية والتعليم؟", "وزارة التربية والتعليم"),
     ("أريد الاستفسار عن وزارة العمل", "وزارة العمل"),
     ("كيف أتواصل مع بلدية مسقط؟", "بلدية مسقط"),
@@ -86,9 +86,9 @@ def test_known_but_uncovered_authorities_refuse_immediately(question, expected_a
 
 
 def test_uncovered_message_names_the_authority_and_states_coverage():
-    match = classify("وزارة الصحة")
+    match = classify("وزارة العمل")
     msg = uncovered_authority_message(match)
-    assert "وزارة الصحة" in msg
+    assert "وزارة العمل" in msg
     assert "قريبًا" in msg
     # The refusal must also say what Daleel CAN do, or it is a dead end.
     assert "شرطة عمان السلطانية" in msg
@@ -127,7 +127,7 @@ def test_the_two_refusals_say_different_things():
     distinct rather than collapsing both into a generic apology.
     """
     covered = classify("كيف أجدد جواز سفري؟")
-    uncovered = classify("وزارة الصحة")
+    uncovered = classify("وزارة العمل")
 
     path_1 = unknown_service_message(covered)
     path_2 = uncovered_authority_message(uncovered)
@@ -141,14 +141,13 @@ def test_the_two_refusals_say_different_things():
 
 def test_coverage_summary_reports_scope():
     summary = coverage_summary()
-    assert summary["authority_count"] == 2
-    # 9: passport split into renewal + new issuance, and MoCIIP gained the
-    # two services gov.om actually publishes (register renewal, home
-    # business) alongside the two still declared but uncurated.
-    assert summary["service_count"] == 9
+    assert summary["authority_count"] == 4
+    # 17 after promoting MoH and MoHUP from not_covered on 2 Aug:
+    # 8 ROP + 4 MoCIIP + 2 MoH + 3 MoHUP.
+    assert summary["service_count"] == 17
     assert summary["known_uncovered_count"] > 0
     ids = {a["id"] for a in summary["authorities"]}
-    assert ids == {"rop", "mociip"}
+    assert ids == {"rop", "mociip", "moh", "mohup"}
 
 
 def test_registry_service_ids_match_the_corpus_spec_naming():
