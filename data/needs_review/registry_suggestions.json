@@ -1,0 +1,32 @@
+[
+  {
+    "service_id": "rop-passport-issuance",
+    "name_ar": "خدمة إصدار الجواز العماني",
+    "authority_ar": "الإدارة العامة للجوازات والأحوال المدنية",
+    "authority_en": "Directorate General of Passports and Civil Status",
+    "source_url": "https://www.rop.gov.om/arabic/e_passport.aspx",
+    "variants": [
+      "REVIEW: add the words a citizen would actually type"
+    ]
+  },
+  {
+    "service_id": "rop-civil-id-issuance",
+    "name_ar": "خدمة إصدار بطاقة الاحوال المدنية (لشخص)",
+    "authority_ar": "الإدارة العامة للجوازات والأحوال المدنية",
+    "authority_en": "Directorate General of Passports and Civil Status",
+    "source_url": "https://www.rop.gov.om/arabic/e_id.aspx",
+    "variants": [
+      "REVIEW: add the words a citizen would actually type"
+    ]
+  },
+  {
+    "service_id": "rop-vehicle-registration-renewal",
+    "name_ar": "تجديد سجل المركبة",
+    "authority_ar": "شرطة عُمان السلطانية",
+    "authority_en": "Royal Oman Police",
+    "source_url": "https://www.rop.gov.om/arabic/Vehicle_Registration_renewal.aspx",
+    "variants": [
+      "REVIEW: add the words a citizen would actually type"
+    ]
+  }
+]

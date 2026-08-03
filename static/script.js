@@ -97,6 +97,30 @@ function renderField(key, value) {
   return wrap;
 }
 
+// A citizen must be able to tell an official ministry page from a blog at a
+// glance. The corpus now accepts arbitrary URLs via the scraper, so the two
+// must not render identically.
+//
+// Derived from source_url here in the browser rather than from a backend
+// field, deliberately: it needs no change to the request path, and the URL
+// is already on every card.
+function sourceBadge(url) {
+  let host = "";
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch (error) {
+    return null;
+  }
+  const official = host === "gov.om" || host.endsWith(".gov.om");
+  const badge = el(
+    "span",
+    "srcflag " + (official ? "srcflag--gov" : "srcflag--other"),
+    official ? "مصدر حكومي رسمي" : "مصدر غير حكومي"
+  );
+  badge.title = host;
+  return badge;
+}
+
 function renderCard(node, data) {
   node.innerHTML = "";
   const card = el("div", "card");
@@ -116,7 +140,9 @@ function renderCard(node, data) {
   // never from the model.
   if (data.source_url) {
     const src = el("div", "card__source");
-    src.appendChild(el("span", null, "المصدر: "));
+    const flag = sourceBadge(data.source_url);
+    if (flag) src.appendChild(flag);
+    src.appendChild(el("span", null, " المصدر: "));
     const link = el("a", null, data.source_title || data.source_url);
     link.href = data.source_url;
     link.target = "_blank";

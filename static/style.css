@@ -150,6 +150,22 @@ body {
 }
 .card__source a { color: var(--accent); word-break: break-all; }
 
+/* Official vs non-official source. The scraper accepts arbitrary URLs, so a
+   citizen must be able to tell a ministry page from a blog without reading
+   the URL. Green = *.gov.om; amber = anything else. Deliberately amber and
+   not red: a non-government source is a caution, not an error. */
+.srcflag {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-inline-end: 6px;
+  border: 1px solid currentColor;
+}
+.srcflag--gov   { color: var(--accent); background: rgba(45,156,116,.12); }
+.srcflag--other { color: var(--warn);   background: rgba(201,162,39,.12); }
+
 .conf {
   display: inline-block;
   font-size: 0.7rem;

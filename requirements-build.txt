@@ -7,3 +7,7 @@
 -r requirements.txt
 pytesseract
 pdf2image
+
+# Corpus scraper (scripts/scrape_corpus.py) - HTML text extraction.
+# Build-time only; the request path never parses HTML.
+beautifulsoup4
