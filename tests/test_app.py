@@ -209,6 +209,6 @@ def test_refusal_and_clarify_never_call_the_model(client, monkeypatch):
 def test_healthz_reports_coverage_and_models(client):
     data = client.get("/healthz").get_json()
     assert data["status"] == "ok"
-    assert data["coverage"]["authority_count"] == 4
-    assert data["coverage"]["service_count"] == 17
+    assert data["coverage"]["authority_count"] == 10
+    assert data["coverage"]["service_count"] == 26
     assert isinstance(data["models_available"], list)

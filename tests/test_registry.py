@@ -141,13 +141,15 @@ def test_the_two_refusals_say_different_things():
 
 def test_coverage_summary_reports_scope():
     summary = coverage_summary()
-    assert summary["authority_count"] == 4
-    # 17 after promoting MoH and MoHUP from not_covered on 2 Aug:
-    # 8 ROP + 4 MoCIIP + 2 MoH + 3 MoHUP.
-    assert summary["service_count"] == 17
+    assert summary["authority_count"] == 10
+    # 26 after the 3 Aug PDF import added six ministries (Interior,
+    # Finance, Social Development, Energy & Minerals, Heritage & Tourism,
+    # Endowments) plus two MoCIIP services.
+    assert summary["service_count"] == 26
     assert summary["known_uncovered_count"] > 0
     ids = {a["id"] for a in summary["authorities"]}
-    assert ids == {"rop", "mociip", "moh", "mohup"}
+    assert ids == {"rop", "mociip", "moh", "mohup",
+                   "moi", "mof", "mosd", "mem", "mht", "mara"}
 
 
 def test_registry_service_ids_match_the_corpus_spec_naming():

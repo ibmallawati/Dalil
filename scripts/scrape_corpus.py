@@ -78,6 +78,11 @@ USER_AGENT = (
     "+https://gov.om)"
 )
 
+# The file a human edits to say what to scrape. Not to be confused with
+# robots.txt, which is published by each REMOTE site to say what a crawler
+# is allowed to fetch — we only ever read that, never write it.
+DEFAULT_URL_FILE = DATA_DIR / "scrape_urls.txt"
+
 RAW_DIR = DATA_DIR / "scraped_raw"
 OUT_DIR = DATA_DIR / "source_docs"
 REVIEW_DIR = DATA_DIR / "needs_review"
@@ -233,7 +238,10 @@ def build_markdown(data, url, service_id):
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("url_file")
+    # Defaults to the checked-in list so the common case is a bare
+    # `python scripts/scrape_corpus.py` with no argument to remember.
+    parser.add_argument("url_file", nargs="?", default=str(DEFAULT_URL_FILE),
+                        help=f"URL list, one per line (default: {DEFAULT_URL_FILE.name})")
     parser.add_argument("--model", default=DEFAULT_MODEL,
                         help=f"structuring model (default {DEFAULT_MODEL}). "
                              f"Do NOT use the demo model.")

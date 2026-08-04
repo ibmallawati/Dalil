@@ -1,0 +1,82 @@
+# ============================================================================
+#  DALEEL — قائمة الروابط المراد استخراجها
+#  URL list for scripts/scrape_corpus.py
+# ============================================================================
+#
+#  ADD ONE URL PER LINE. Then run:
+#
+#      .\venv\Scripts\python.exe scripts/scrape_corpus.py
+#
+#  (the script reads THIS file by default — no argument needed)
+#
+#  Lines starting with # are ignored. Blank lines are ignored.
+#
+# ---------------------------------------------------------------------------
+#  ONE PAGE, SEVERAL SERVICES
+# ---------------------------------------------------------------------------
+#  Some pages describe more than one service. The ROP civil-status page
+#  covers new ID, ID renewal AND resident card on a single URL.
+#
+#  Do NOT expect the scraper to split them. List the URL once per service
+#  and name the service after a pipe:
+#
+#      https://www.rop.gov.om/arabic/e_id.aspx | إصدار البطاقة الشخصية لأول مرة
+#      https://www.rop.gov.om/arabic/e_id.aspx | تجديد البطاقة الشخصية
+#
+#  The hint tells the model which service to extract and keeps the two
+#  output files from colliding.
+#
+# ---------------------------------------------------------------------------
+#  WHAT HAPPENS TO EACH URL
+# ---------------------------------------------------------------------------
+#    1. the site's robots.txt is checked   -> blocked URLs are skipped
+#    2. the page is fetched, raw text saved to data/scraped_raw/
+#    3. an LLM restructures it into ## sections
+#    4. the VALIDATOR checks every number and document against the raw text
+#    5. PASS -> data/source_docs/     FAIL -> data/needs_review/
+#
+#  A file that fails validation NEVER reaches data/source_docs/.
+#
+# ---------------------------------------------------------------------------
+#  RULES
+# ---------------------------------------------------------------------------
+#  - Prefer .gov.om. Non-government sources are allowed but the answer card
+#    will visibly flag them as «مصدر غير حكومي».
+#  - Never add aggregator sites (omaneportal.com, omanpedia.net,
+#    wikioman.org, ...). They look official and are not.
+#  - business.gov.om publishes "Disallow: /" and WILL be skipped. That is
+#    deliberate; do not try to work around it.
+#  - An existing file in data/source_docs/ is never overwritten unless you
+#    pass --force. Hand-written files win by default.
+#
+# ============================================================================
+
+
+# --- شرطة عمان السلطانية / Royal Oman Police --------------------------------
+# Already scraped successfully on 3 Aug 2026.
+https://www.rop.gov.om/arabic/e_passport.aspx
+https://www.rop.gov.om/arabic/e_id.aspx
+https://www.rop.gov.om/arabic/Vehicle_Registration_renewal.aspx
+
+# Known ROP service pages NOT yet scraped — uncomment to include:
+# https://www.rop.gov.om/arabic/driver_license_renewal.aspx
+# https://www.rop.gov.om/arabic/new_driving_license.aspx
+# https://www.rop.gov.om/arabic/VehicleOwnershipTransfer.aspx
+# https://www.rop.gov.om/arabic/birth.aspx
+# https://www.rop.gov.om/arabic/deathregistration.aspx
+# https://www.rop.gov.om/arabic/reg_marriage_divorce.aspx
+# https://www.rop.gov.om/arabic/civil_info_update.aspx
+# https://www.rop.gov.om/arabic/omani_id.aspx
+# https://www.rop.gov.om/arabic/resident_id.aspx
+# https://www.rop.gov.om/arabic/e_id_batch.aspx
+# https://www.rop.gov.om/arabic/amendment_committee.aspx
+# https://www.rop.gov.om/arabic/TrafficFinesPayment.aspx
+
+# --- البوابة الحكومية الموحدة / gov.om --------------------------------------
+# Per-service pages live at gov.om/ar/w/<slug>. Find slugs by searching:
+#   https://gov.om/search?q=<arabic-term>&content-type=384136
+# https://gov.om/ar/w/get-a-non-conviction-certificate
+# https://gov.om/ar/w/get-family-visa
+
+# --- وزارة التجارة والصناعة وترويج الاستثمار --------------------------------
+# business.gov.om is BLOCKED by robots.txt (Disallow: /). Use gov.om instead.

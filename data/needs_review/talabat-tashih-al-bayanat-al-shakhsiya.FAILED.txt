@@ -1,0 +1,7 @@
+service : طلبات تصحيح البيانات الشخصية
+url     : https://www.moi.gov.om/ar-om/services/nationality
+
+FAILED — 1 finding(s) across 1 check(s).
+
+## document_not_in_source  (1)
+  - required document «المستندات المؤيدة للتعديل أو التصحيح، وتختلف حسب نوع البيانات المراد تصحيحها.» does not appear in the page text

@@ -1,0 +1,398 @@
+[
+  {
+    "name": "التواصل مع وزارة الدفاع",
+    "chars": 723,
+    "docs": false,
+    "fees": false,
+    "steps": false,
+    "cond": false,
+    "score": 0
+  },
+  {
+    "name": "نادي الشفق",
+    "chars": 1193,
+    "docs": false,
+    "fees": false,
+    "steps": false,
+    "cond": true,
+    "score": 1
+  },
+  {
+    "name": "طلبات الجنسية العمانية",
+    "chars": 727,
+    "docs": false,
+    "fees": true,
+    "steps": false,
+    "cond": false,
+    "score": 1
+  },
+  {
+    "name": "طلبات تصحيح البيانات الشخصية",
+    "chars": 831,
+    "docs": false,
+    "fees": true,
+    "steps": false,
+    "cond": false,
+    "score": 1
+  },
+  {
+    "name": "تسوية - لجان التوفيق والمصالحة",
+    "chars": 750,
+    "docs": false,
+    "fees": true,
+    "steps": false,
+    "cond": true,
+    "score": 2
+  },
+  {
+    "name": "خدمات القطاع البلدي",
+    "chars": 2424,
+    "docs": false,
+    "fees": true,
+    "steps": false,
+    "cond": true,
+    "score": 2
+  },
+  {
+    "name": "تقديم بلاغ للبعثة الدبلوماسية",
+    "chars": 1256,
+    "docs": false,
+    "fees": false,
+    "steps": false,
+    "cond": false,
+    "score": 0
+  },
+  {
+    "name": "نظام خدمات المستفيدين",
+    "chars": 2260,
+    "docs": true,
+    "fees": true,
+    "steps": true,
+    "cond": true,
+    "score": 4
+  },
+  {
+    "name": "اعتماد شهادات ضريبية لشركات الامتياز",
+    "chars": 492,
+    "docs": true,
+    "fees": true,
+    "steps": false,
+    "cond": false,
+    "score": 2
+  },
+  {
+    "name": "متابعة القروض التنموية القائمة",
+    "chars": 520,
+    "docs": true,
+    "fees": true,
+    "steps": false,
+    "cond": true,
+    "score": 3
+  },
+  {
+    "name": "إصدار أوامر الشراء واستلام الموارد",
+    "chars": 449,
+    "docs": true,
+    "fees": true,
+    "steps": false,
+    "cond": true,
+    "score": 3
+  },
+  {
+    "name": "طلب تحويل الاحتياجات المالية للشركات الحكومية وفق الموازنات المخصصة",
+    "chars": 602,
+    "docs": true,
+    "fees": true,
+    "steps": false,
+    "cond": true,
+    "score": 3
+  },
+  {
+    "name": "الإعفاء وتقسيط المبالغ المستحقة للدولة",
+    "chars": 519,
+    "docs": true,
+    "fees": true,
+    "steps": false,
+    "cond": true,
+    "score": 3
+  },
+  {
+    "name": "طلب الإعفاءات من رسوم العلاج - وزارة الصحة",
+    "chars": 1036,
+    "docs": true,
+    "fees": true,
+    "steps": false,
+    "cond": false,
+    "score": 2
+  },
+  {
+    "name": "إصدار الضمانات",
+    "chars": 1240,
+    "docs": true,
+    "fees": false,
+    "steps": false,
+    "cond": true,
+    "score": 2
+  },
+  {
+    "name": "خدمات الأشخاص ذوي الإعاقة",
+    "chars": 668,
+    "docs": true,
+    "fees": true,
+    "steps": true,
+    "cond": true,
+    "score": 4
+  },
+  {
+    "name": "خدمات المساعدات الاجتماعية",
+    "chars": 563,
+    "docs": true,
+    "fees": true,
+    "steps": true,
+    "cond": true,
+    "score": 4
+  },
+  {
+    "name": "خدمات الأسرة والطفولة",
+    "chars": 509,
+    "docs": true,
+    "fees": true,
+    "steps": true,
+    "cond": true,
+    "score": 4
+  },
+  {
+    "name": "خدمات الجمعيات والمؤسسات الأهلية",
+    "chars": 959,
+    "docs": true,
+    "fees": true,
+    "steps": true,
+    "cond": true,
+    "score": 4
+  },
+  {
+    "name": "تأسيس وتسجيل الأعمال التجارية",
+    "chars": 846,
+    "docs": true,
+    "fees": true,
+    "steps": false,
+    "cond": true,
+    "score": 3
+  },
+  {
+    "name": "ترخيص الأنشطة التجارية",
+    "chars": 630,
+    "docs": true,
+    "fees": true,
+    "steps": false,
+    "cond": true,
+    "score": 3
+  },
+  {
+    "name": "حماية الملكية الفكرية",
+    "chars": 1774,
+    "docs": true,
+    "fees": true,
+    "steps": true,
+    "cond": true,
+    "score": 4
+  },
+  {
+    "name": "منصة حزم",
+    "chars": 1947,
+    "docs": true,
+    "fees": false,
+    "steps": true,
+    "cond": true,
+    "score": 3
+  },
+  {
+    "name": "خدمات قطاع التعدين والمعادن",
+    "chars": 1661,
+    "docs": true,
+    "fees": true,
+    "steps": true,
+    "cond": true,
+    "score": 4
+  },
+  {
+    "name": "تجديد رخصة مرشد سياحي",
+    "chars": 1046,
+    "docs": true,
+    "fees": true,
+    "steps": true,
+    "cond": true,
+    "score": 4
+  },
+  {
+    "name": "طلب ترخيص الأنشطة السياحية",
+    "chars": 520,
+    "docs": true,
+    "fees": true,
+    "steps": true,
+    "cond": true,
+    "score": 4
+  },
+  {
+    "name": "تجديد ترخيص الأنشطة السياحية",
+    "chars": 499,
+    "docs": true,
+    "fees": true,
+    "steps": true,
+    "cond": true,
+    "score": 4
+  },
+  {
+    "name": "ترخيص م متحف أو بيت تراثي",
+    "chars": 1075,
+    "docs": true,
+    "fees": true,
+    "steps": false,
+    "cond": true,
+    "score": 3
+  },
+  {
+    "name": "الشكاوى والبلاغات",
+    "chars": 1046,
+    "docs": false,
+    "fees": false,
+    "steps": false,
+    "cond": false,
+    "score": 0
+  },
+  {
+    "name": "منصة الخدمات الإلكترونية - إنجاز",
+    "chars": 715,
+    "docs": true,
+    "fees": true,
+    "steps": true,
+    "cond": true,
+    "score": 4
+  },
+  {
+    "name": "طلب البيانات المفتوحة",
+    "chars": 483,
+    "docs": true,
+    "fees": true,
+    "steps": true,
+    "cond": true,
+    "score": 4
+  },
+  {
+    "name": "خدمة التواصل - تواصل معنا",
+    "chars": 555,
+    "docs": false,
+    "fees": false,
+    "steps": false,
+    "cond": false,
+    "score": 0
+  },
+  {
+    "name": "البث المباشر",
+    "chars": 383,
+    "docs": false,
+    "fees": false,
+    "steps": false,
+    "cond": false,
+    "score": 0
+  },
+  {
+    "name": "تحميل الإصدارات",
+    "chars": 937,
+    "docs": false,
+    "fees": false,
+    "steps": false,
+    "cond": false,
+    "score": 0
+  },
+  {
+    "name": "طلب تخصيص قطعة أرض لبناء مسجد أو مدرسة قرآن كريم",
+    "chars": 756,
+    "docs": false,
+    "fees": false,
+    "steps": false,
+    "cond": false,
+    "score": 0
+  },
+  {
+    "name": "طلب منح الزكاة",
+    "chars": 573,
+    "docs": false,
+    "fees": false,
+    "steps": false,
+    "cond": false,
+    "score": 0
+  },
+  {
+    "name": "طلب احتياجات لمسجد أو مدرسة قرآن كريم",
+    "chars": 745,
+    "docs": false,
+    "fees": true,
+    "steps": false,
+    "cond": false,
+    "score": 1
+  },
+  {
+    "name": "طلب توسعة أو إضافة مرافق أو صيانة أو تعديل خرائط معمارية لمسجد",
+    "chars": 744,
+    "docs": true,
+    "fees": true,
+    "steps": false,
+    "cond": false,
+    "score": 2
+  },
+  {
+    "name": "طلب تصريح بناء مسجد جديد أو مدرسة قرآن كريم",
+    "chars": 843,
+    "docs": false,
+    "fees": true,
+    "steps": false,
+    "cond": true,
+    "score": 2
+  },
+  {
+    "name": "تسجيل طلب الذهاب للحج",
+    "chars": 435,
+    "docs": true,
+    "fees": true,
+    "steps": true,
+    "cond": false,
+    "score": 3
+  },
+  {
+    "name": "شكاوى الحجاج على أصحاب حملات الحج",
+    "chars": 599,
+    "docs": false,
+    "fees": false,
+    "steps": false,
+    "cond": false,
+    "score": 0
+  },
+  {
+    "name": "طلب إصدار شهادات الداخلين في الإسلام",
+    "chars": 547,
+    "docs": true,
+    "fees": true,
+    "steps": true,
+    "cond": true,
+    "score": 4
+  },
+  {
+    "name": "إدارة الإيراد والصرف المالي من الأوقاف",
+    "chars": 624,
+    "docs": false,
+    "fees": false,
+    "steps": false,
+    "cond": false,
+    "score": 0
+  },
+  {
+    "name": "الدفع الإلكتروني في السهم الوقفي لمدارس القرآن الكريم",
+    "chars": 655,
+    "docs": false,
+    "fees": false,
+    "steps": false,
+    "cond": false,
+    "score": 0
+  }
+]

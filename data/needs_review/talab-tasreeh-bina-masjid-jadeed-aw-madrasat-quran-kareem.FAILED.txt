@@ -1,0 +1,7 @@
+service : طلب تصريح بناء مسجد جديد أو مدرسة قرآن كريم
+url     : https://www.mara.gov.om/arabic/Services.aspx
+
+FAILED — 1 finding(s) across 1 check(s).
+
+## section_too_short  (1)
+  - section «المدة المتوقعة» has 9 chars (minimum 10) — omit the section instead of emitting it empty

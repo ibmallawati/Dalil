@@ -1,0 +1,7 @@
+service : تسوية - لجان التوفيق والمصالحة
+url     : https://www.moi.gov.om/ar-om/news/الداخلية-تدشن-خدمتي-الحصول-على-الجنسية-وتصحيح-البيانات-ً
+
+FAILED — 1 finding(s) across 1 check(s).
+
+## document_not_in_source  (1)
+  - required document «تختلف باختلاف نوع النزاع والمستندات المؤيدة للطلب.» does not appear in the page text

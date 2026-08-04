@@ -1,0 +1,7 @@
+service : ترخيص الأنشطة التجارية
+url     : https://tejarah.gov.om/ar/service-directory
+
+FAILED — 1 finding(s) across 1 check(s).
+
+## document_not_in_source  (1)
+  - required document «تختلف حسب نوع النشاط والترخيص» does not appear in the page text
