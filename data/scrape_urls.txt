@@ -80,3 +80,6 @@ https://www.rop.gov.om/arabic/Vehicle_Registration_renewal.aspx
 
 # --- وزارة التجارة والصناعة وترويج الاستثمار --------------------------------
 # business.gov.om is BLOCKED by robots.txt (Disallow: /). Use gov.om instead.
+https://mol.gov.om
+https://omanuna.oman.om
+https://mjla.gov.om

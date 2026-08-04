@@ -426,11 +426,23 @@ def _resolve_ambiguity(haystack):
 
 
 def uncovered_authority_message(match: RegistryMatch) -> str:
-    """D6 refusal path 2: we know this authority, we just don't cover it yet."""
+    """
+    D6 refusal path 2: we know this authority, we just don't cover it yet.
+
+    The list of covered authorities is built from the registry at call
+    time, not hardcoded, so this message never goes stale as coverage
+    grows — it previously named only the first two authorities ever
+    added, long after eight more had been registered.
+    """
+    # A short, readable sample rather than all N names crammed onto one
+    # line — the point is to show the citizen *some* covered authorities
+    # exist, not to enumerate the whole registry in a refusal message.
+    sample = "، ".join(a["name_ar"] for a in _COVERED[:3])
+    more = f" وغيرها" if len(_COVERED) > 3 else ""
     return (
         f"{match.authority_ar} ليست ضمن قاعدة معرفتي بعد — سيتم إضافتها قريبًا.\n\n"
-        "أستطيع حاليًا المساعدة في خدمات شرطة عمان السلطانية "
-        "ووزارة التجارة والصناعة وترويج الاستثمار."
+        f"أستطيع حاليًا المساعدة في خدمات {len(_COVERED)} جهات حكومية، منها: "
+        f"{sample}{more}."
     )
 
 
