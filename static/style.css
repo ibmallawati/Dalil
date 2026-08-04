@@ -1,69 +1,130 @@
 /* Daleel — Arabic RTL interface.
-   The page is dir="rtl"; CSS logical properties (inline-start/end) are used
-   throughout, so nothing needs mirroring by hand. */
+   The page is dir="rtl"; CSS logical properties (inline-start/end,
+   margin-inline, border-start-*) are used throughout, so nothing needs
+   mirroring by hand and the same rules would work LTR. */
 
 :root {
-  --bg: #0f1419;
-  --surface: #171e26;
-  --surface-2: #1f2831;
-  --border: #2a3543;
-  --text: #e8edf2;
-  --text-dim: #93a1b0;
-  --accent: #2d9c74;          /* Omani green, muted for a dark UI */
-  --accent-dim: #1d6b4f;
-  --warn: #c9a227;
-  --danger: #c0554d;
+  --bg: #eef2f1;
+  --surface: #ffffff;
+  --surface-2: #f4f7f6;
+  --border: #dde4e2;
+  --text: #14211d;
+  --text-dim: #5f7169;
+  --accent: #1c7a55;          /* Omani green */
+  --accent-soft: rgba(28, 122, 85, .10);
+  --accent-strong: #145c40;
+  --warn: #8a6100;
+  --warn-soft: rgba(138, 97, 0, .10);
+  --danger: #b3261e;
+  --danger-soft: rgba(179, 38, 30, .08);
   --radius: 14px;
+  --shadow: 0 1px 2px rgba(16, 33, 27, .05), 0 8px 28px rgba(16, 33, 27, .06);
 }
 
-@media (prefers-color-scheme: light) {
+/* Dark is a real mode, not an inversion: the same tokens, re-valued once. */
+@media (prefers-color-scheme: dark) {
   :root {
-    --bg: #f4f6f8;
-    --surface: #ffffff;
-    --surface-2: #eef2f6;
-    --border: #d6dee7;
-    --text: #16202b;
-    --text-dim: #5b6b7c;
-    --accent: #1d7a58;
-    --accent-dim: #145c42;
+    --bg: #0d1411;
+    --surface: #151d1a;
+    --surface-2: #1c2622;
+    --border: #29352f;
+    --text: #e6eeea;
+    --text-dim: #93a49c;
+    --accent: #3faa7c;
+    --accent-soft: rgba(63, 170, 124, .14);
+    --accent-strong: #2d8a63;
+    --warn: #d1a63a;
+    --warn-soft: rgba(209, 166, 58, .14);
+    --danger: #e0736a;
+    --danger-soft: rgba(224, 115, 106, .12);
+    --shadow: none;
   }
 }
 
 * { box-sizing: border-box; }
+
+html, body { height: 100%; }
 
 body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
   font-family: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+  font-size: 16px;
   /* Arabic needs more line height than Latin: ascenders, descenders and
      dots collide at Latin defaults. */
   line-height: 1.85;
+  -webkit-text-size-adjust: 100%;
 }
 
-.chat {
-  max-width: 820px;
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* --- shell -------------------------------------------------------------
+   A single column that owns the full viewport height, so the composer is
+   pinned and only the thread scrolls. 100dvh (not vh) because mobile
+   browsers shrink the visual viewport when the keyboard opens. */
+.shell {
+  max-width: 880px;
   margin: 0 auto;
   height: 100dvh;
   display: flex;
   flex-direction: column;
+  background: var(--surface);
+  border-inline: 1px solid var(--border);
+  box-shadow: var(--shadow);
 }
 
-/* --- header --- */
-.chat__header {
+/* --- top bar --- */
+.topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 18px 20px;
+  padding: 14px 20px;
   border-bottom: 1px solid var(--border);
+  background: var(--surface);
 }
-.chat__brand h1 { margin: 0; font-size: 1.5rem; font-weight: 700; }
-.chat__brand p { margin: 2px 0 0; font-size: 0.85rem; color: var(--text-dim); }
+
+.brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.brand__mark {
+  flex: none;
+  width: 38px; height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.brand__names { display: flex; flex-direction: column; min-width: 0; }
+.brand__name { font-size: 1.22rem; font-weight: 700; line-height: 1.4; }
+.brand__tag {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .badge {
+  flex: none;
   font-size: 0.72rem;
-  padding: 4px 10px;
+  padding: 3px 10px;
   border-radius: 999px;
   border: 1px solid var(--border);
   color: var(--text-dim);
@@ -75,33 +136,82 @@ body {
   transition: opacity .2s;
 }
 .badge--idle { opacity: 0; }
-.badge--primary { border-color: var(--accent-dim); color: var(--accent); }
+.badge--primary { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 /* A fallback model answered. Visible but not alarming — the whole point is
    that the answer is still good. */
-.badge--fallback { border-color: var(--warn); color: var(--warn); }
+.badge--fallback { border-color: var(--warn); color: var(--warn); background: var(--warn-soft); }
+
+/* --- thread (scroll region) --- */
+.thread {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 22px 20px 8px;
+}
+.thread:focus { outline: none; }
+
+/* --- hero --------------------------------------------------------------
+   Short on purpose. It explains what the tool answers and gets out of the
+   way: .shell.is-chatting removes it once the first question is asked. */
+.hero { padding-bottom: 12px; }
+.hero__title {
+  margin: 0 0 8px;
+  font-size: 1.45rem;
+  font-weight: 700;
+  line-height: 1.6;
+  letter-spacing: -0.01em;
+}
+.hero__text {
+  margin: 0;
+  max-width: 52ch;
+  color: var(--text-dim);
+  font-size: 0.98rem;
+}
+.hero__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}
+.chip {
+  font-family: inherit;
+  font-size: 0.88rem;
+  padding: 7px 15px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+
+.shell.is-chatting .hero { display: none; }
 
 /* --- messages --- */
 .messages {
-  flex: 1;
-  overflow-y: auto;
-  padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 14px;
+  padding-bottom: 14px;
 }
+.messages:empty { display: none; }
 
 .msg { max-width: 88%; }
+/* In RTL, flex-start is the right edge: the citizen's own words sit where
+   an Arabic reader starts the line. */
 .msg--user {
   align-self: flex-start;
-  background: var(--accent-dim);
+  background: var(--accent);
   color: #fff;
-  padding: 12px 16px;
+  padding: 11px 16px;
   border-radius: var(--radius);
   border-start-end-radius: 4px;
 }
 .msg--bot {
   align-self: flex-end;
-  background: var(--surface);
+  background: var(--surface-2);
   border: 1px solid var(--border);
   padding: 14px 16px;
   border-radius: var(--radius);
@@ -117,7 +227,7 @@ body {
   margin-bottom: 12px;
   border-bottom: 1px solid var(--border);
 }
-.card__service { font-size: 1.12rem; font-weight: 700; }
+.card__service { font-size: 1.1rem; font-weight: 700; line-height: 1.5; }
 .card__authority { font-size: 0.85rem; color: var(--text-dim); }
 
 .field { margin-bottom: 14px; }
@@ -126,7 +236,7 @@ body {
   font-size: 0.78rem;
   font-weight: 600;
   color: var(--accent);
-  margin-bottom: 3px;
+  margin-bottom: 2px;
 }
 .field__value { font-size: 0.95rem; }
 .field__value ol, .field__value ul { margin: 4px 0 0; padding-inline-start: 22px; }
@@ -146,6 +256,7 @@ body {
   padding-top: 10px;
   border-top: 1px solid var(--border);
   font-size: 0.78rem;
+  line-height: 1.9;
   color: var(--text-dim);
 }
 .card__source a { color: var(--accent); word-break: break-all; }
@@ -158,62 +269,107 @@ body {
   display: inline-block;
   font-size: 0.68rem;
   font-weight: 600;
-  padding: 2px 8px;
+  padding: 1px 8px;
   border-radius: 999px;
   margin-inline-end: 6px;
   border: 1px solid currentColor;
 }
-.srcflag--gov   { color: var(--accent); background: rgba(45,156,116,.12); }
-.srcflag--other { color: var(--warn);   background: rgba(201,162,39,.12); }
+.srcflag--gov   { color: var(--accent); background: var(--accent-soft); }
+.srcflag--other { color: var(--warn);   background: var(--warn-soft); }
 
 .conf {
   display: inline-block;
   font-size: 0.7rem;
-  padding: 2px 8px;
+  padding: 1px 8px;
   border-radius: 999px;
   margin-inline-start: 8px;
 }
-.conf--high { background: rgba(45,156,116,.15); color: var(--accent); }
-.conf--partial { background: rgba(201,162,39,.15); color: var(--warn); }
+.conf--high { background: var(--accent-soft); color: var(--accent); }
+.conf--partial { background: var(--warn-soft); color: var(--warn); }
 
 /* --- clarifying options (D4) --- */
 .options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .option {
   font-family: inherit;
   font-size: 0.9rem;
-  padding: 9px 16px;
+  padding: 8px 16px;
   border-radius: 999px;
-  border: 1px solid var(--accent-dim);
+  border: 1px solid var(--accent);
   background: transparent;
   color: var(--accent);
   cursor: pointer;
   transition: background .15s, color .15s;
 }
-.option:hover:not(:disabled) { background: var(--accent-dim); color: #fff; }
+.option:hover:not(:disabled) { background: var(--accent); color: #fff; }
 .option:disabled { opacity: .4; cursor: default; }
 
 /* --- refusal: must not look like an answer --- */
 .msg--refusal { border-inline-end: 3px solid var(--danger); }
 
+/* --- error state -------------------------------------------------------
+   A failure is not a refusal and not an answer: it says the request broke
+   and offers the one action that can help, which is trying again. */
+.msg--error {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+.msg--error .msg__text { color: var(--danger); font-weight: 500; }
+.retry {
+  font-family: inherit;
+  font-size: 0.85rem;
+  margin-top: 10px;
+  padding: 6px 15px;
+  border-radius: 999px;
+  border: 1px solid var(--danger);
+  background: transparent;
+  color: var(--danger);
+  cursor: pointer;
+}
+.retry:hover { background: var(--danger); color: #fff; }
+
+/* --- loading state --- */
+.loading { display: flex; align-items: center; gap: 10px; color: var(--text-dim); }
+.loading__label { font-size: 0.85rem; }
+.typing { display: inline-flex; gap: 4px; }
+.typing span {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: blink 1.3s infinite;
+}
+.typing span:nth-child(2) { animation-delay: .2s; }
+.typing span:nth-child(3) { animation-delay: .4s; }
+@keyframes blink { 0%,60%,100% { opacity: .25 } 30% { opacity: 1 } }
+
 /* --- composer --- */
 .composer {
   display: flex;
   gap: 10px;
-  padding: 16px 20px;
+  padding: 14px 20px;
   border-top: 1px solid var(--border);
+  background: var(--surface);
 }
 .composer__input {
   flex: 1;
+  min-width: 0;
   font-family: inherit;
+  /* 16px minimum: anything smaller makes iOS Safari zoom on focus. */
   font-size: 1rem;
   padding: 12px 16px;
   border-radius: var(--radius);
   border: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--surface-2);
   color: var(--text);
 }
-.composer__input:focus { outline: none; border-color: var(--accent); }
+.composer__input::placeholder { color: var(--text-dim); }
+.composer__input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--surface);
+}
+.composer__input:disabled { opacity: .6; }
 .composer__send {
+  flex: none;
   font-family: inherit;
   font-size: 1rem;
   font-weight: 600;
@@ -223,22 +379,40 @@ body {
   background: var(--accent);
   color: #fff;
   cursor: pointer;
+  transition: background .15s, opacity .15s;
 }
-.composer__send:disabled { opacity: .5; cursor: default; }
+.composer__send:hover:not(:disabled) { background: var(--accent-strong); }
+.composer__send:disabled { opacity: .55; cursor: default; }
 
-/* --- typing --- */
-.typing { display: inline-flex; gap: 4px; }
-.typing span {
-  width: 7px; height: 7px;
-  border-radius: 50%;
-  background: var(--text-dim);
-  animation: blink 1.3s infinite;
+.disclaimer {
+  margin: 0;
+  padding: 0 20px calc(12px + env(safe-area-inset-bottom));
+  font-size: 0.72rem;
+  line-height: 1.7;
+  color: var(--text-dim);
+  text-align: center;
+  background: var(--surface);
 }
-.typing span:nth-child(2) { animation-delay: .2s; }
-.typing span:nth-child(3) { animation-delay: .4s; }
-@keyframes blink { 0%,60%,100% { opacity: .25 } 30% { opacity: 1 } }
 
-@media (max-width: 600px) {
-  .msg { max-width: 95%; }
-  .chat__brand p { display: none; }
+/* --- responsive --------------------------------------------------------
+   Desktop reads as a centred card; phone is full-bleed with tighter
+   gutters and no wasted vertical space above the thread. */
+@media (max-width: 640px) {
+  body { font-size: 15px; }
+  .shell { border-inline: none; box-shadow: none; }
+  .topbar { padding: 11px 14px; }
+  .brand__mark { width: 34px; height: 34px; border-radius: 10px; font-size: 1.05rem; }
+  .brand__name { font-size: 1.1rem; }
+  .brand__tag { display: none; }
+  .thread { padding: 16px 14px 6px; }
+  .hero__title { font-size: 1.2rem; }
+  .hero__text { font-size: 0.92rem; }
+  .msg { max-width: 96%; }
+  .composer { padding: 10px 14px; gap: 8px; }
+  .composer__send { padding: 12px 18px; }
+  .disclaimer { padding-inline: 14px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }

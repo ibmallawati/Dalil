@@ -10,7 +10,10 @@
 // count. This file reports it honestly; it does not police it. A rule that
 // lives only in browser state stops existing on refresh.
 
+const shellEl = document.getElementById("shell");
+const heroEl = document.getElementById("hero");
 const messagesEl = document.getElementById("messages");
+const threadEl = document.getElementById("thread");
 const formEl = document.getElementById("composer");
 const inputEl = document.getElementById("input");
 const sendBtn = document.getElementById("send");
@@ -18,6 +21,7 @@ const servedByEl = document.getElementById("served-by");
 
 const history = [];
 let clarifyCount = 0;
+let busy = false;
 // The model at the head of the failover chain. The first answer defines it;
 // anything different afterwards means we have fallen down the chain.
 let primaryModel = null;
@@ -36,6 +40,11 @@ const ORDERED_FIELDS = [
 ];
 const NOT_IN_SOURCE = "غير محدد في المصدر";
 const CONF_LABEL = { high: "معلومات مؤكدة", partial: "معلومات جزئية" };
+const NETWORK_ERROR = "تعذّر الاتصال بالخادم. تأكد من تشغيله ثم أعد المحاولة.";
+
+const WELCOME =
+  "مرحباً بك في دليل. اسألني عن إجراءات الخدمات الحكومية — " +
+  "مثل تجديد جواز السفر أو البطاقة الشخصية أو السجل التجاري.";
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -44,19 +53,36 @@ function el(tag, className, text) {
   return node;
 }
 
-function bubble(role, extraClass) {
+function scrollToEnd() {
+  threadEl.scrollTop = threadEl.scrollHeight;
+}
+
+function bubble(role) {
   const node = el("div", "msg " + (role === "user" ? "msg--user" : "msg--bot"));
-  if (extraClass) node.classList.add(extraClass);
   messagesEl.appendChild(node);
-  messagesEl.scrollTop = messagesEl.scrollHeight;
+  scrollToEnd();
   return node;
 }
 
-function showTyping() {
+// --- loading state -------------------------------------------------------
+// Three things move together, so they live in one place: the placeholder
+// bubble, the composer lock, and aria-busy for screen readers. Answers take
+// seconds, and a silent page during those seconds reads as broken.
+function setBusy(state) {
+  busy = state;
+  sendBtn.disabled = state;
+  inputEl.disabled = state;
+  messagesEl.setAttribute("aria-busy", state ? "true" : "false");
+}
+
+function showLoading() {
   const node = bubble("bot");
+  const wrap = el("div", "loading");
   const dots = el("span", "typing");
   dots.append(el("span"), el("span"), el("span"));
-  node.appendChild(dots);
+  wrap.append(dots, el("span", "loading__label", "جارٍ البحث في المصادر الرسمية…"));
+  node.appendChild(wrap);
+  scrollToEnd();
   return node;
 }
 
@@ -121,6 +147,19 @@ function sourceBadge(url) {
   return badge;
 }
 
+function sourceLine(data) {
+  const src = el("div", "card__source");
+  const flag = sourceBadge(data.source_url);
+  if (flag) src.appendChild(flag);
+  src.appendChild(el("span", null, "المصدر: "));
+  const link = el("a", null, data.source_title || data.source_url);
+  link.href = data.source_url;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  src.appendChild(link);
+  return src;
+}
+
 function renderCard(node, data) {
   node.innerHTML = "";
   const card = el("div", "card");
@@ -138,18 +177,7 @@ function renderCard(node, data) {
   // Every answer carries its source. This is the visible half of "how do
   // you know it isn't hallucinating" — and the URL comes from the corpus,
   // never from the model.
-  if (data.source_url) {
-    const src = el("div", "card__source");
-    const flag = sourceBadge(data.source_url);
-    if (flag) src.appendChild(flag);
-    src.appendChild(el("span", null, " المصدر: "));
-    const link = el("a", null, data.source_title || data.source_url);
-    link.href = data.source_url;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    src.appendChild(link);
-    card.appendChild(src);
-  }
+  if (data.source_url) card.appendChild(sourceLine(data));
 
   node.appendChild(card);
 }
@@ -174,6 +202,8 @@ function renderClarify(node, data) {
 }
 
 function renderReply(node, data) {
+  node.classList.remove("msg--refusal");
+
   if (data.format === "card") {
     renderCard(node, data);
   } else if (data.format === "clarify") {
@@ -184,32 +214,41 @@ function renderReply(node, data) {
     node.innerHTML = "";
     if (data.format === "refusal") node.classList.add("msg--refusal");
     node.appendChild(el("div", "msg__text", data.reply || data.text || ""));
-    if (data.format === "prose" && data.source_url) {
-      const src = el("div", "card__source");
-      src.appendChild(el("span", null, "المصدر: "));
-      const link = el("a", null, data.source_title || data.source_url);
-      link.href = data.source_url;
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      src.appendChild(link);
-      node.appendChild(src);
-    }
+    if (data.format === "prose" && data.source_url) node.appendChild(sourceLine(data));
   }
 
   if (typeof data.answer_time === "number") {
     node.appendChild(el("div", "msg__meta", `أُجيب خلال ${data.answer_time} ثانية`));
   }
-  messagesEl.scrollTop = messagesEl.scrollHeight;
+  scrollToEnd();
 }
 
-async function send(text, serviceId) {
-  const userNode = bubble("user");
-  userNode.appendChild(el("div", "msg__text", text));
-  history.push({ role: "user", content: text });
+// --- error state ---------------------------------------------------------
+// Distinct from a refusal: a refusal is an answer ("I have no grounded
+// source for that"), a failure is the request not completing. Retry replays
+// the same history, so nothing is retyped and no turn is duplicated.
+function renderError(node, message, serviceId) {
+  node.innerHTML = "";
+  node.classList.remove("msg--refusal");
+  node.classList.add("msg--error");
+  node.appendChild(el("div", "msg__text", message));
 
-  inputEl.value = "";
-  sendBtn.disabled = true;
-  const typing = showTyping();
+  const btn = el("button", "retry", "إعادة المحاولة");
+  btn.type = "button";
+  btn.addEventListener("click", () => {
+    node.remove();
+    deliver(serviceId);
+  });
+  node.appendChild(btn);
+  scrollToEnd();
+}
+
+// One turn against the backend, using whatever is already in `history`.
+// Kept separate from send() so retry does not re-append the user's message.
+async function deliver(serviceId) {
+  if (busy) return;
+  setBusy(true);
+  const placeholder = showLoading();
 
   try {
     const response = await fetch("/chat", {
@@ -221,10 +260,24 @@ async function send(text, serviceId) {
         clarify_count: clarifyCount,
       }),
     });
-    const data = await response.json();
+
+    let data = null;
+    try {
+      data = await response.json();
+    } catch (parseError) {
+      data = null;
+    }
+
+    // Rate limits (429) and stage failures (500) still arrive as Arabic
+    // JSON, so their text is shown as-is — but as a failure with a retry,
+    // not as an answer.
+    if (!response.ok) {
+      renderError(placeholder, (data && data.reply) || NETWORK_ERROR, serviceId);
+      return;
+    }
 
     updateServedBy(data.served_by);
-    renderReply(typing, data);
+    renderReply(placeholder, data);
 
     // Only the visible reply goes back into the history. Card fields do
     // not: re-feeding a rendered checklist as conversational text invites
@@ -234,13 +287,29 @@ async function send(text, serviceId) {
       content: data.reply || data.text || data.service_name || "",
     });
   } catch (error) {
-    typing.innerHTML = "";
-    typing.classList.add("msg--refusal");
-    typing.appendChild(el("div", "msg__text", "تعذّر الاتصال بالخادم. تأكد من تشغيله."));
+    renderError(placeholder, NETWORK_ERROR, serviceId);
   } finally {
-    sendBtn.disabled = false;
+    setBusy(false);
     inputEl.focus();
   }
+}
+
+function send(text, serviceId) {
+  if (busy) return;
+
+  // The hero has done its job the moment a conversation starts.
+  if (!shellEl.classList.contains("is-chatting")) {
+    shellEl.classList.add("is-chatting");
+    const greeting = bubble("bot");
+    greeting.appendChild(el("div", "msg__text", WELCOME));
+  }
+
+  const userNode = bubble("user");
+  userNode.appendChild(el("div", "msg__text", text));
+  history.push({ role: "user", content: text });
+
+  inputEl.value = "";
+  deliver(serviceId);
 }
 
 formEl.addEventListener("submit", (event) => {
@@ -248,3 +317,9 @@ formEl.addEventListener("submit", (event) => {
   const text = inputEl.value.trim();
   if (text) send(text, null);
 });
+
+heroEl.querySelectorAll(".chip").forEach((chip) => {
+  chip.addEventListener("click", () => send(chip.dataset.q, null));
+});
+
+inputEl.focus();

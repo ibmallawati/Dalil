@@ -2,8 +2,10 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>دليل — مساعد الخدمات الحكومية</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="description" content="دليل — مساعد يجيب عن إجراءات الخدمات الحكومية في سلطنة عُمان اعتماداً على المصادر الرسمية." />
+  <meta name="theme-color" content="#1c7a55" />
+  <title>دليل — مساعد الخدمات الحكومية في سلطنة عُمان</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <!-- IBM Plex Sans Arabic: designed for Arabic UI text, not a Latin face
@@ -12,41 +14,63 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
 <body>
-  <main class="chat">
-    <header class="chat__header">
-      <div class="chat__brand">
-        <h1>دليل</h1>
-        <p>مساعد الخدمات الحكومية في سلطنة عُمان</p>
+  <div id="shell" class="shell">
+
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand__mark" aria-hidden="true">د</span>
+        <span class="brand__names">
+          <span class="brand__name">دليل</span>
+          <span class="brand__tag">مساعد الخدمات الحكومية في سلطنة عُمان</span>
+        </span>
       </div>
       <!-- Which model answered. Small and quiet, but present: mid-demo it
            says whether we are on the primary model or already down the
            failover chain, and a judge seeing a fallback answer with no
            visible degradation is the resilience argument making itself. -->
-      <div class="chat__meta">
-        <span id="served-by" class="badge badge--idle" title="النموذج الذي أجاب"></span>
-      </div>
+      <span id="served-by" class="badge badge--idle" title="النموذج الذي أجاب"></span>
     </header>
 
-    <section id="messages" class="messages" aria-live="polite">
-      <div class="msg msg--bot">
-        <div class="msg__text">
-          مرحباً بك في دليل. اسألني عن إجراءات الخدمات الحكومية —
-          مثل تجديد جواز السفر أو البطاقة الشخصية أو السجل التجاري.
+    <main id="thread" class="thread" tabindex="-1">
+
+      <!-- Hero. Present only until the first question is asked; after that
+           the conversation is the page and the pitch is in the way. -->
+      <section id="hero" class="hero">
+        <h1 class="hero__title">اسأل عن أي خدمة حكومية، واحصل على الإجراء كاملاً</h1>
+        <p class="hero__text">
+          يشرح لك دليل المستندات المطلوبة والخطوات والرسوم والمدة المتوقعة،
+          مع رابط المصدر الرسمي في كل إجابة.
+        </p>
+        <div class="hero__chips" role="group" aria-label="أسئلة مقترحة">
+          <button type="button" class="chip" data-q="كيف أجدد جواز السفر؟">تجديد جواز السفر</button>
+          <button type="button" class="chip" data-q="ما هي إجراءات تجديد البطاقة الشخصية؟">تجديد البطاقة الشخصية</button>
+          <button type="button" class="chip" data-q="كيف أسجل سجل تجاري جديد؟">تسجيل سجل تجاري</button>
+          <button type="button" class="chip" data-q="ما هي خطوات نقل ملكية مركبة؟">نقل ملكية مركبة</button>
         </div>
-      </div>
-    </section>
+      </section>
+
+      <section id="messages" class="messages" aria-live="polite" aria-busy="false"></section>
+    </main>
 
     <form id="composer" class="composer" autocomplete="off">
+      <label class="sr-only" for="input">اكتب سؤالك</label>
       <input
         id="input"
         class="composer__input"
         type="text"
-        placeholder="اكتب سؤالك هنا..."
-        aria-label="اكتب سؤالك"
+        placeholder="مثال: ما المستندات المطلوبة لتجديد جواز السفر؟"
+        enterkeyhint="send"
       />
-      <button id="send" class="composer__send" type="submit">إرسال</button>
+      <button id="send" class="composer__send" type="submit">
+        <span class="composer__send-label">إرسال</span>
+      </button>
     </form>
-  </main>
+
+    <p class="disclaimer">
+      المعلومات مستندة إلى مصادر رسمية منشورة، ويبقى الرجوع إلى الجهة المختصة هو المرجع النهائي.
+    </p>
+
+  </div>
 
   <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>

@@ -16,3 +16,5 @@ logs/*
 /stage_log.jsonl
 # Claude Code local session files
 .claude/
+
+.venv/
