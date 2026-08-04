@@ -130,10 +130,10 @@ def test_spent_budget_loads_every_candidate_not_just_the_first(client, monkeypat
     one of two candidates, and the answer came back as a refusal for a
     question the other candidate could have answered.
 
-    This runs against the REAL corpus, where rop-passport-new-issuance has
-    no file yet — so only the renewal sections exist to load. The router
-    asking for both is asserted in test_router.py, where fetch_service is
-    faked and can answer for both.
+    This runs against the REAL corpus. Both candidates now have files
+    (rop-passport-renewal and rop-passport-issuance), so both sets of
+    sections load. The router asking for both is asserted in
+    test_router.py, where fetch_service is faked.
     """
     seen = {}
 

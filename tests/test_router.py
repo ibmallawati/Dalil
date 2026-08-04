@@ -81,7 +81,7 @@ def test_ambiguous_passport_question_asks_instead_of_guessing(spy):
     assert plan.match.clarify_question_ar
     assert len(plan.match.clarify_options) == 2
     ids = {o["service_id"] for o in plan.match.clarify_options}
-    assert ids == {"rop-passport-renewal", "rop-passport-new-issuance"}
+    assert ids == {"rop-passport-renewal", "rop-passport-issuance"}
 
 
 def test_clarify_options_carry_tappable_labels(spy):
@@ -301,4 +301,4 @@ def test_spent_clarify_budget_loads_every_candidate(spy):
     plan = plan_and_gather("أريد جواز سفر", allow_clarify=False)
     assert plan.strategy is Strategy.WHOLE_SERVICE
     assert set(spy["fetch_service"]) == {
-        "rop-passport-renewal", "rop-passport-new-issuance"}
+        "rop-passport-renewal", "rop-passport-issuance"}

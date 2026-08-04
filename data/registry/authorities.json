@@ -41,7 +41,7 @@
           ]
         },
         {
-          "service_id": "rop-passport-new-issuance",
+          "service_id": "rop-passport-issuance",
           "name_ar": "إصدار جواز سفر جديد",
           "variants": [
             "اصدار جواز",
@@ -51,7 +51,7 @@
           ]
         },
         {
-          "service_id": "rop-id-renewal",
+          "service_id": "rop-civil-id-issuance",
           "name_ar": "تجديد البطاقة الشخصية",
           "variants": [
             "البطاقة الشخصية",
@@ -494,7 +494,7 @@
         },
         {
           "label_ar": "إصدار جواز سفر جديد",
-          "service_id": "rop-passport-new-issuance",
+          "service_id": "rop-passport-issuance",
           "disambiguators": [
             "اصدار",
             "إصدار",

@@ -23,7 +23,7 @@ from chatbot.agent.registry import (
 @pytest.mark.parametrize("question,expected_service", [
     ("كيف أجدد جواز سفري؟", "rop-passport-renewal"),
     ("ما هي رسوم تجديد الجواز؟", "rop-passport-renewal"),
-    ("أريد تجديد البطاقة الشخصية", "rop-id-renewal"),
+    ("أريد تجديد البطاقة الشخصية", "rop-civil-id-issuance"),
     ("كيف اجدد ملكية سيارتي؟", "rop-vehicle-registration-renewal"),
     ("أريد تجديد رخصة السياقة", "rop-driving-licence-renewal"),
     ("أريد إصدار رخصة سياقة جديدة", "rop-driving-licence-new"),
@@ -201,7 +201,7 @@ def test_disambiguated_phrase_resolves_to_its_service():
 
 def test_new_issuance_wording_resolves_the_other_way():
     match = classify("أريد إصدار جواز سفر جديد")
-    assert match.service_id == "rop-passport-new-issuance"
+    assert match.service_id == "rop-passport-issuance"
     assert not match.needs_clarification
 
 
@@ -214,7 +214,7 @@ def test_bare_passport_request_is_genuinely_ambiguous():
     match = classify("أريد جواز سفر")
     assert match.needs_clarification
     assert set(match.candidate_service_ids) == {
-        "rop-passport-renewal", "rop-passport-new-issuance"}
+        "rop-passport-renewal", "rop-passport-issuance"}
 
 
 # --- Disambiguator matching: neither too loose nor too strict ------------
@@ -243,7 +243,7 @@ def test_clear_renewal_wording_never_asks_to_clarify(question):
 
 def test_new_issuance_wording_still_resolves_the_other_way():
     for question in ["أريد إصدار جواز سفر جديد", "استخراج جواز لمولود جديد"]:
-        assert classify(question).service_id == "rop-passport-new-issuance"
+        assert classify(question).service_id == "rop-passport-issuance"
 
 
 def test_proclitic_tolerance_does_not_reintroduce_the_substring_bug():
