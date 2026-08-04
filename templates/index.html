@@ -49,6 +49,29 @@
         </div>
       </section>
 
+      <!-- Browse the coverage map. The chips above are four questions we
+           guessed at; this is every authority and every service Daleel
+           actually documents, so a citizen who does not know what to ask
+           can find it instead of phrasing it. Hidden once the conversation
+           starts, for the same reason the hero is. -->
+      <section id="directory" class="directory" aria-labelledby="directory-title">
+        <div class="directory__head">
+          <h2 id="directory-title" class="directory__title">الجهات الحكومية وخدماتها</h2>
+          <p id="directory-meta" class="directory__meta"></p>
+        </div>
+
+        <label class="sr-only" for="directory-search">ابحث عن جهة أو خدمة</label>
+        <input
+          id="directory-search"
+          class="directory__search"
+          type="search"
+          placeholder="ابحث عن جهة أو خدمة — مثال: جواز، سجل تجاري"
+        />
+
+        <div id="directory-list" class="directory__list"></div>
+        <p id="directory-empty" class="directory__empty" hidden>لا توجد جهة أو خدمة مطابقة لبحثك.</p>
+      </section>
+
       <section id="messages" class="messages" aria-live="polite" aria-busy="false"></section>
     </main>
 
@@ -71,6 +94,13 @@
     </p>
 
   </div>
+
+  <!-- The coverage map, straight from data/registry/authorities.json via
+       registry.browse_directory(). Shipped as data rather than as server-
+       rendered markup: the filter needs something to match against that is
+       not the DOM, and the template stays free of hardcoded ministry names.
+       Must precede script.js, which reads it on load. -->
+  <script id="directory-data" type="application/json">{{ directory | tojson }}</script>
 
   <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>

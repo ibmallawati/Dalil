@@ -447,6 +447,95 @@ def unknown_service_message(match: RegistryMatch) -> str:
     return text
 
 
+def _search_text(name_ar, name_en, variants):
+    """
+    One normalized haystack per row, for the homepage browse filter.
+
+    Built from the SAME variants the pre-gate matches on, so «جوازي» finds
+    «إصدار/تجديد جواز السفر» in the browse list exactly as it resolves the
+    service in a typed question. The frontend does not get its own
+    vocabulary — there is only one, and it lives in the registry file.
+    """
+    parts = [normalize_arabic(name_ar).lower()]
+    if name_en:
+        parts.append(name_en.lower())
+    parts.extend(norm for norm, _ in variants)
+    return " | ".join(dict.fromkeys(p for p in parts if p))
+
+
+def browse_directory():
+    """
+    The covered authorities and their services, shaped for the browse
+    section on the homepage.
+
+    Read from the precomputed _COVERED structures — the very ones classify()
+    matches against — so the page cannot advertise an authority or a service
+    the pre-gate does not resolve. The browse list IS the coverage map,
+    rendered; adding an authority stays a data operation.
+
+    --- Declared coverage is not the same as answerable ------------------
+
+    A service can be declared in authorities.json with no file behind it in
+    the corpus. classify() still resolves it, and the router still refuses
+    honestly (REFUSE_NO_CONTENT names the authority and its portal) — that
+    behaviour is correct for a TYPED question and is left exactly as it is.
+
+    Browsing is different. A tappable row is an offer, and offering a
+    procedure that can only answer «ليس لدي تفاصيل هذه الخدمة» wastes the one
+    action the citizen took. So each row is verified against the corpus with
+    the SAME loader the router uses, and an authority left with nothing
+    documented drops out rather than expanding into an empty list.
+
+    This narrows what is BROWSABLE only. Coverage, matching and refusal
+    messages are untouched: /healthz still reports the full declared count,
+    which is what keeps the registry/corpus gap visible instead of hidden.
+    """
+    # Imported lazily, not at module scope: retrieval loads the embedding
+    # index at import, and this module must stay cheap to import for the
+    # pre-gate, its tests, and tooling that only wants classify().
+    from chatbot.rag.retrieval import fetch_service
+
+    directory = []
+    skipped = []
+
+    for a in _COVERED:
+        services = []
+        for s in a["services"]:
+            if not fetch_service(s["service_id"]):
+                skipped.append(s["service_id"])
+                continue
+            services.append({
+                "service_id": s["service_id"],
+                "name_ar": s["name_ar"],
+                "search": _search_text(s["name_ar"], None, s["variants"]),
+            })
+
+        if not services:
+            skipped.append(a["id"])
+            continue
+
+        directory.append({
+            "id": a["id"],
+            "name_ar": a["name_ar"],
+            "name_en": a["name_en"],
+            "portal_url": a["portal_url"],
+            "search": _search_text(a["name_ar"], a["name_en"], a["variants"]),
+            "services": services,
+        })
+
+    # Logged, never silent: a skip means the registry claims something the
+    # corpus cannot document, which is a content gap somebody should close —
+    # the same disagreement router.py warns about on the request path.
+    if skipped:
+        logger.warning(
+            "browse_directory_skipped_undocumented",
+            extra={"skipped": skipped,
+                   "hint": "declared in authorities.json with no corpus content"},
+        )
+
+    return directory
+
+
 def coverage_summary():
     """
     Used for /healthz and for stating scope to the panel: "we cover N

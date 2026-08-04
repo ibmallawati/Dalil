@@ -189,6 +189,130 @@ body {
 
 .shell.is-chatting .hero { display: none; }
 
+/* --- browse: authorities and services ----------------------------------
+   The coverage map made visible. Same tokens as everything else, and no
+   physical left/right anywhere, so it mirrors with the document direction.
+   Hidden once the conversation starts, exactly like the hero: at that point
+   the thread is the page. */
+.directory {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+.shell.is-chatting .directory { display: none; }
+
+.directory__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.directory__title { margin: 0; font-size: 1.05rem; font-weight: 700; line-height: 1.6; }
+.directory__meta { margin: 0; font-size: 0.78rem; color: var(--text-dim); }
+
+.directory__search {
+  width: 100%;
+  margin: 12px 0 14px;
+  font-family: inherit;
+  /* 16px minimum, same reason as the composer: iOS zooms below it. */
+  font-size: 1rem;
+  padding: 10px 15px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+}
+.directory__search::placeholder { color: var(--text-dim); }
+.directory__search:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+/* auto-fill rather than a fixed column count: one rule covers phone,
+   tablet and desktop, and adding authorities never needs a new breakpoint.
+   align-items:start keeps an expanded card from stretching its neighbour. */
+.directory__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  align-items: start;
+  gap: 10px;
+}
+.directory__empty { margin: 8px 2px 0; font-size: 0.9rem; color: var(--text-dim); }
+
+.auth {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.auth__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  font-family: inherit;
+  font-size: 0.95rem;
+  text-align: start;
+  padding: 12px 14px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.auth__name { flex: 1; min-width: 0; font-weight: 600; line-height: 1.55; }
+.auth__count {
+  flex: none;
+  font-size: 0.7rem;
+  padding: 2px 9px;
+  border-radius: 999px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  white-space: nowrap;
+}
+.auth__chev { flex: none; color: var(--text-dim); font-size: 0.8rem; transition: transform .15s; }
+.auth__head[aria-expanded="true"] .auth__chev { transform: rotate(180deg); }
+.auth__head:hover .auth__name { color: var(--accent); }
+
+.auth__panel { padding: 0 14px 12px; background: var(--surface); }
+
+.svclist { list-style: none; margin: 0; padding: 0; }
+.svc {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  padding: 9px 0;
+  border-top: 1px solid var(--border);
+}
+/* An author `display` beats the UA stylesheet's `[hidden] { display: none }`,
+   so a flex row does NOT disappear when the filter sets .hidden on it. This
+   rule is what makes the search box actually hide non-matching services. */
+.svc[hidden] { display: none; }
+.svc__name { flex: 1; min-width: 120px; font-size: 0.9rem; line-height: 1.6; }
+.svc__ask {
+  flex: none;
+  font-family: inherit;
+  font-size: 0.78rem;
+  padding: 5px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.svc__ask:hover { background: var(--accent); color: #fff; }
+
+.auth__portal {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 0.76rem;
+  color: var(--accent);
+}
+
 /* --- messages --- */
 .messages {
   display: flex;
@@ -407,6 +531,10 @@ body {
   .thread { padding: 16px 14px 6px; }
   .hero__title { font-size: 1.2rem; }
   .hero__text { font-size: 0.92rem; }
+  /* One column: at 250px minimum a phone gets a single card anyway, but
+     stating it keeps the cards full-bleed on the narrowest devices. */
+  .directory__list { grid-template-columns: 1fr; }
+  .directory__title { font-size: 1rem; }
   .msg { max-width: 96%; }
   .composer { padding: 10px 14px; gap: 8px; }
   .composer__send { padding: 12px 18px; }

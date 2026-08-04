@@ -322,4 +322,173 @@ heroEl.querySelectorAll(".chip").forEach((chip) => {
   chip.addEventListener("click", () => send(chip.dataset.q, null));
 });
 
+// --- browse: authorities and their services ------------------------------
+// The coverage map, rendered. Every name here came from
+// data/registry/authorities.json via registry.browse_directory() — nothing
+// in this file knows the name of a single ministry.
+//
+// Tapping a service enters the SAME chat flow as typing, with its
+// service_id attached: the citizen picked that service by name, so the
+// backend loads the whole service rather than guessing by similarity.
+// That is the existing tapped-option contract, reused as-is.
+
+const directoryEl = document.getElementById("directory");
+const dirDataEl = document.getElementById("directory-data");
+const dirListEl = document.getElementById("directory-list");
+const dirSearchEl = document.getElementById("directory-search");
+const dirEmptyEl = document.getElementById("directory-empty");
+const dirMetaEl = document.getElementById("directory-meta");
+
+// Arabic counted nouns: 1 singular, 2 dual, 3-10 plural, 11+ singular
+// again. «8 خدمة» is wrong in a way every Arabic reader notices.
+function arabicCount(n, forms) {
+  if (n === 1) return forms.one;
+  if (n === 2) return forms.two;
+  return `${n} ${n <= 10 ? forms.few : forms.many}`;
+}
+const SERVICE_WORDS = { one: "خدمة واحدة", two: "خدمتان", few: "خدمات", many: "خدمة" };
+const AUTHORITY_WORDS = { one: "جهة واحدة", two: "جهتان", few: "جهات", many: "جهة" };
+
+// A REDUCED mirror of the folding in rag/arabic.py, applied to the search
+// box only. The registry side of every comparison was normalized in Python
+// by normalize_arabic() itself, so this only has to fold what a citizen may
+// type: diacritics, tatweel, the alef family, ة/ى, and Arabic-Indic digits.
+//
+// It is deliberately NOT on the retrieval path. normalize_arabic() is the
+// one function both sides of embedding call; a browser copy of it could
+// drift and silently degrade retrieval, so this one filters a visible list
+// and nothing else.
+const AR_FOLD = { "أ": "ا", "إ": "ا", "آ": "ا", "ٱ": "ا", "ة": "ه", "ى": "ي" };
+
+function normalizeQuery(text) {
+  return (text || "")
+    .normalize("NFKC")
+    .replace(/[ً-ْٰۖ-ۭـ]/g, "")
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[أإآٱةى]/g, (c) => AR_FOLD[c])
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function setExpanded(entry, expanded) {
+  entry.panel.hidden = !expanded;
+  entry.head.setAttribute("aria-expanded", expanded ? "true" : "false");
+}
+
+function buildAuthority(authority) {
+  const card = el("article", "auth");
+  const panelId = `services-${authority.id}`;
+
+  const head = el("button", "auth__head");
+  head.type = "button";
+  head.setAttribute("aria-expanded", "false");
+  head.setAttribute("aria-controls", panelId);
+  head.appendChild(el("span", "auth__name", authority.name_ar));
+  head.appendChild(
+    el("span", "auth__count", arabicCount(authority.services.length, SERVICE_WORDS))
+  );
+  const chev = el("span", "auth__chev", "▾");
+  chev.setAttribute("aria-hidden", "true");
+  head.appendChild(chev);
+
+  const panel = el("div", "auth__panel");
+  panel.id = panelId;
+  panel.hidden = true;
+
+  const list = el("ul", "svclist");
+  const rows = authority.services.map((service) => {
+    const node = el("li", "svc");
+    node.appendChild(el("span", "svc__name", service.name_ar));
+
+    const ask = el("button", "svc__ask", "اسأل عن هذه الخدمة");
+    ask.type = "button";
+    ask.title = `اسأل عن: ${service.name_ar}`;
+    ask.addEventListener("click", () => send(service.name_ar, service.service_id));
+    node.appendChild(ask);
+
+    list.appendChild(node);
+    return { service, node };
+  });
+  panel.appendChild(list);
+
+  // The official portal, for the services this authority has that Daleel
+  // does not document yet.
+  if (authority.portal_url) {
+    const link = el("a", "auth__portal", "البوابة الرسمية للجهة");
+    link.href = authority.portal_url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    panel.appendChild(link);
+  }
+
+  const entry = { authority, card, head, panel, rows };
+  head.addEventListener("click", () => setExpanded(entry, panel.hidden));
+
+  card.append(head, panel);
+  return entry;
+}
+
+function initDirectory() {
+  if (!directoryEl || !dirDataEl) return;
+
+  let authorities = [];
+  try {
+    authorities = JSON.parse(dirDataEl.textContent) || [];
+  } catch (error) {
+    // A broken directory must not take the chat down with it: the composer
+    // above is the primary way in, and it does not depend on this list.
+    directoryEl.hidden = true;
+    return;
+  }
+  if (!authorities.length) {
+    directoryEl.hidden = true;
+    return;
+  }
+
+  const entries = authorities.map(buildAuthority);
+  entries.forEach((entry) => dirListEl.appendChild(entry.card));
+
+  const serviceTotal = authorities.reduce((sum, a) => sum + a.services.length, 0);
+  dirMetaEl.textContent =
+    `${arabicCount(authorities.length, AUTHORITY_WORDS)} · ` +
+    `${arabicCount(serviceTotal, SERVICE_WORDS)}`;
+
+  function applyFilter(raw) {
+    const query = normalizeQuery(raw);
+    let visible = 0;
+
+    entries.forEach((entry) => {
+      // An authority hit shows all of its services: someone searching
+      // «شرطة عمان» wants the ministry's whole list, not a filtered one.
+      const authorityHit = !query || entry.authority.search.includes(query);
+      let matches = 0;
+
+      entry.rows.forEach((row) => {
+        const hit = authorityHit || row.service.search.includes(query);
+        row.node.hidden = !hit;
+        if (hit) matches += 1;
+      });
+
+      const show = authorityHit || matches > 0;
+      entry.card.hidden = !show;
+      if (show) visible += 1;
+
+      // While searching, open every surviving card so the match is on
+      // screen without a second tap. Clearing the box restores the
+      // collapsed default rather than leaving ten cards open.
+      setExpanded(entry, Boolean(query) && show);
+    });
+
+    dirEmptyEl.hidden = visible > 0;
+  }
+
+  dirSearchEl.addEventListener("input", () => applyFilter(dirSearchEl.value));
+  // type="search" clears via Escape and the native ✕ without firing input
+  // in every browser.
+  dirSearchEl.addEventListener("search", () => applyFilter(dirSearchEl.value));
+}
+
+initDirectory();
+
 inputEl.focus();

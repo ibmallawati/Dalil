@@ -135,7 +135,15 @@ def build_response(plan, question, history):
 
 @app.route("/")
 def home():
-    return render_template("index.html")
+    """
+    The homepage carries the browse section, so the coverage map ships with
+    the HTML instead of arriving over a second request.
+
+    No new endpoint for it on purpose: the directory is derived entirely
+    from data/registry/authorities.json, which is loaded and precomputed at
+    import. There is nothing to fetch that the page does not already know.
+    """
+    return render_template("index.html", directory=registry.browse_directory())
 
 
 @app.route("/healthz")
