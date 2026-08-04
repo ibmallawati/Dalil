@@ -371,9 +371,21 @@ function normalizeQuery(text) {
     .toLowerCase();
 }
 
+// Open/closed state lives in a class rather than in the `hidden` attribute,
+// because `hidden` is display:none and display cannot be transitioned. The
+// CSS animates the panel with grid-template-rows 0fr -> 1fr (so it grows to
+// exactly its own content height, even after the filter changes how many
+// rows are in it) and uses `visibility` to keep a closed panel out of the
+// tab order and the accessibility tree — the job `hidden` was doing.
+//
+// aria-expanded still carries the state for assistive tech, unchanged.
 function setExpanded(entry, expanded) {
-  entry.panel.hidden = !expanded;
+  entry.card.classList.toggle("is-open", expanded);
   entry.head.setAttribute("aria-expanded", expanded ? "true" : "false");
+}
+
+function isExpanded(entry) {
+  return entry.card.classList.contains("is-open");
 }
 
 function buildAuthority(authority) {
@@ -394,11 +406,18 @@ function buildAuthority(authority) {
 
   const panel = el("div", "auth__panel");
   panel.id = panelId;
-  panel.hidden = true;
+
+  // Single wrapper inside the panel, and it has to stay single: the panel is
+  // the animating grid, and a second child would land in an implicit row
+  // that the 0fr collapse does not cover — the list would clip while the
+  // portal link stayed visible.
+  const inner = el("div", "auth__inner");
 
   const list = el("ul", "svclist");
-  const rows = authority.services.map((service) => {
+  const rows = authority.services.map((service, index) => {
     const node = el("li", "svc");
+    // Staggers this row's entrance as the panel unfolds.
+    node.style.setProperty("--j", String(index));
     node.appendChild(el("span", "svc__name", service.name_ar));
 
     const ask = el("button", "svc__ask", "اسأل عن هذه الخدمة");
@@ -410,7 +429,7 @@ function buildAuthority(authority) {
     list.appendChild(node);
     return { service, node };
   });
-  panel.appendChild(list);
+  inner.appendChild(list);
 
   // The official portal, for the services this authority has that Daleel
   // does not document yet.
@@ -419,11 +438,12 @@ function buildAuthority(authority) {
     link.href = authority.portal_url;
     link.target = "_blank";
     link.rel = "noopener noreferrer";
-    panel.appendChild(link);
+    inner.appendChild(link);
   }
+  panel.appendChild(inner);
 
   const entry = { authority, card, head, panel, rows };
-  head.addEventListener("click", () => setExpanded(entry, panel.hidden));
+  head.addEventListener("click", () => setExpanded(entry, !isExpanded(entry)));
 
   card.append(head, panel);
   return entry;
@@ -447,12 +467,33 @@ function initDirectory() {
   }
 
   const entries = authorities.map(buildAuthority);
-  entries.forEach((entry) => dirListEl.appendChild(entry.card));
+  entries.forEach((entry, index) => {
+    // --i drives the staggered entrance in CSS, so the grid assembles in
+    // sequence instead of ten cards landing on the same frame. Capped, or a
+    // future eleventh authority would wait most of a second to appear.
+    entry.card.style.setProperty("--i", String(Math.min(index, 11)));
+    dirListEl.appendChild(entry.card);
+  });
 
   const serviceTotal = authorities.reduce((sum, a) => sum + a.services.length, 0);
   dirMetaEl.textContent =
     `${arabicCount(authorities.length, AUTHORITY_WORDS)} · ` +
     `${arabicCount(serviceTotal, SERVICE_WORDS)}`;
+
+  // Replaying the card entrance on every keystroke would flicker — «جواز» is
+  // four of them. So the animation is tied to the RESULT SET, not to typing:
+  // it replays only when which cards are visible actually changes.
+  let lastSignature = null;
+
+  function animateResultChange(signature) {
+    if (signature === lastSignature) return;
+    lastSignature = signature;
+    dirListEl.classList.remove("is-refiltered");
+    // One forced reflow. Without it the browser coalesces the remove+add
+    // into no change at all and the animation never restarts.
+    void dirListEl.offsetWidth;
+    dirListEl.classList.add("is-refiltered");
+  }
 
   function applyFilter(raw) {
     const query = normalizeQuery(raw);
@@ -481,6 +522,7 @@ function initDirectory() {
     });
 
     dirEmptyEl.hidden = visible > 0;
+    animateResultChange(entries.map((e) => (e.card.hidden ? "0" : "1")).join(""));
   }
 
   dirSearchEl.addEventListener("input", () => applyFilter(dirSearchEl.value));

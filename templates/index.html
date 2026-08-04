@@ -4,7 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="description" content="دليل — مساعد يجيب عن إجراءات الخدمات الحكومية في سلطنة عُمان اعتماداً على المصادر الرسمية." />
-  <meta name="theme-color" content="#1c7a55" />
+  <!-- Deep Omani green: the anchor of the palette, so the browser chrome on
+       Android matches the header instead of fighting it. -->
+  <meta name="theme-color" content="#0f5f3d" />
+  <!-- Tells the UA to render native controls (the search field's clear
+       button, scrollbars) in whichever scheme is active, so they stop
+       looking pasted-on in dark mode. -->
+  <meta name="color-scheme" content="light dark" />
   <title>دليل — مساعد الخدمات الحكومية في سلطنة عُمان</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -14,11 +20,36 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
 <body>
+
+  <!-- Ambient background: soft floating shapes in green, sand and gold.
+       Purely decorative, so it is aria-hidden and pointer-events:none — it
+       can never intercept a tap or reach a screen reader. Each shape is a
+       plain radial gradient moved with `transform` only, which the compositor
+       handles without repainting; no blur filters, no canvas, no images. -->
+  <div class="ambient" aria-hidden="true">
+    <span class="ambient__shape ambient__shape--green"></span>
+    <span class="ambient__shape ambient__shape--sand"></span>
+    <span class="ambient__shape ambient__shape--gold"></span>
+    <span class="ambient__ring"></span>
+  </div>
+
   <div id="shell" class="shell">
 
     <header class="topbar">
       <div class="brand">
-        <span class="brand__mark" aria-hidden="true">د</span>
+        <!-- The logo, drawn entirely in CSS (see style.css, "logo mark"):
+             a seal tile holding an abstracted letter د whose baseline runs
+             on as a path and ends in a gold arrowhead. No image, no SVG, no
+             icon font — three empty spans and two pseudo-elements.
+
+             Decorative, so it stays aria-hidden: the wordmark «دليل»
+             immediately beside it is the accessible name. -->
+        <span class="brand__mark" aria-hidden="true">
+          <span class="brand__glyph">
+            <span class="brand__dal"></span>
+            <span class="brand__arrow"></span>
+          </span>
+        </span>
         <span class="brand__names">
           <span class="brand__name">دليل</span>
           <span class="brand__tag">مساعد الخدمات الحكومية في سلطنة عُمان</span>
@@ -36,7 +67,14 @@
       <!-- Hero. Present only until the first question is asked; after that
            the conversation is the page and the pitch is in the way. -->
       <section id="hero" class="hero">
-        <h1 class="hero__title">اسأل عن أي خدمة حكومية، واحصل على الإجراء كاملاً</h1>
+        <p class="hero__eyebrow">
+          <span class="hero__dot" aria-hidden="true"></span>
+          إجابات مسنَدة إلى مصادر رسمية
+        </p>
+        <h1 class="hero__title">
+          اسأل عن أي خدمة حكومية،
+          <span class="hero__accent">واحصل على الإجراء كاملاً</span>
+        </h1>
         <p class="hero__text">
           يشرح لك دليل المستندات المطلوبة والخطوات والرسوم والمدة المتوقعة،
           مع رابط المصدر الرسمي في كل إجابة.
@@ -61,12 +99,17 @@
         </div>
 
         <label class="sr-only" for="directory-search">ابحث عن جهة أو خدمة</label>
-        <input
-          id="directory-search"
-          class="directory__search"
-          type="search"
-          placeholder="ابحث عن جهة أو خدمة — مثال: جواز، سجل تجاري"
-        />
+        <!-- Wrapper exists to carry the CSS-drawn magnifier and the focus
+             ring. The input keeps its id and class: script.js binds to it. -->
+        <div class="search">
+          <span class="search__icon" aria-hidden="true"></span>
+          <input
+            id="directory-search"
+            class="directory__search"
+            type="search"
+            placeholder="ابحث عن جهة أو خدمة — مثال: جواز، سجل تجاري"
+          />
+        </div>
 
         <div id="directory-list" class="directory__list"></div>
         <p id="directory-empty" class="directory__empty" hidden>لا توجد جهة أو خدمة مطابقة لبحثك.</p>
@@ -86,6 +129,7 @@
       />
       <button id="send" class="composer__send" type="submit">
         <span class="composer__send-label">إرسال</span>
+        <span class="composer__send-arrow" aria-hidden="true"></span>
       </button>
     </form>
 
