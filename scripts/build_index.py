@@ -241,7 +241,10 @@ def main():
     # embed_text is derivable and only bloats the artifact; drop it.
     stored = [{k: v for k, v in r.items() if k != "embed_text"} for r in records]
     with open(chunks_path, "w", encoding="utf-8") as f:
-        json.dump(stored, f, ensure_ascii=False)
+        # indent=2: this file is opened directly for debugging/inspection
+        # far more often than its size matters. Un-indented, 116 chunks
+        # collapse to a single ~92KB line that editors render as blank.
+        json.dump(stored, f, ensure_ascii=False, indent=2)
 
     print(f"\nSaved {index_path} {vectors.shape}")
     print(f"Saved {chunks_path} ({len(stored)} records)")
