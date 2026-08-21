@@ -5,42 +5,47 @@ This is the agentic decision that sits between "is this in scope?" (the
 registry) and "here is an answer" (generation). It runs before any
 embedding, and for most questions it means no embedding happens at all.
 
---- Why retrieval strategy depends on L1 ---------------------------------
+--- L1 is a HINT, not a gate ----------------------------------------------
 
-The registry does not merely recognise an authority; when it matches a
-service variant it resolves a specific `service_id`. Once that is known,
-similarity search is actively harmful:
+L1 used to short-circuit retrieval: a resolved `service_id` loaded that
+whole file and similarity never ran. That was defensible while the answer
+was a fixed card — top-k could not fill eight fields, so a model would fill
+them from general knowledge instead. The card is gone, and the bypass
+outlived its reason.
 
-  D5's answer card has eight fields. Top-k retrieval over a seven-section
-  service can only ever supply a few of them. Faced with a card it cannot
-  fill from the context, a model does one of two things — null the fields,
-  or fill them from general knowledge. The second produces an invented fee
-  or an invented document list underneath a real government source URL.
-  That is the single worst output this system can produce, and top-k over
-  a resolved service is how you get there by default.
+What it cost, measured:
 
-A curated service file is 20-40 lines. There is nothing to select from.
+  «كم رسوم تجديد جواز السفر ورخصة السياقة؟»
+    L1 keyword-matches «جواز السفر» first, loads the passport file, and
+    stops. The driving-licence half of the question is silently dropped,
+    and the answer looks confident anyway.
 
---- The four strategies --------------------------------------------------
+    Similarity ranks rop-driving-licence-renewal/الخطوات at 0.8607,
+    rop-passport-renewal/الرسوم at 0.8566 and
+    rop-driving-licence-renewal/الرسوم at 0.8515 — both services, no
+    keyword needed.
+
+Retrieval now always runs. When L1 did resolve a service, its sections are
+merged in so they are guaranteed present — L1 contributes recall it is good
+at (exact Arabic service names) without being able to suppress anything.
+
+--- The strategies -------------------------------------------------------
 
 REFUSE_UNCOVERED   L1 named a different, known Omani authority.
                    No embedding. D6 refusal path 2.
 
-CLARIFY            L1 resolved two or more candidate services.
-                   No embedding, no LLM call — the question and its options
-                   come from the registry, so the clarification is
-                   deterministic and fires identically on every run.
+CLARIFY            Two candidate services — declared by the registry, or
+                   detected from a near-tie in retrieval scores. No LLM
+                   call, so the clarification cannot rate-limit mid-demo.
 
-WHOLE_SERVICE      L1 resolved exactly one service. Load all its sections.
-                   No similarity, no threshold.
+SIMILARITY         The main road. Retrieval, plus L1's hinted service if it
+                   had one.
 
-SIMILARITY         L1 matched an authority only, or had no opinion at all.
-                   Embed and search, as before. This is the ONLY path where
-                   the D2 threshold is consulted.
+WHOLE_SERVICE      Only where the service is not in question: the citizen
+                   tapped a clarifying option, or the clarify budget is
+                   spent and every candidate gets loaded.
 
-Note what that last line means: the narrow (~0.015) similarity separation
-measured on e5 only ever governs questions the deterministic layer could
-not resolve. It is a fallback, not the main road.
+REFUSE_NO_CONTENT  Nothing was retrieved at all.
 """
 
 import logging
@@ -54,11 +59,16 @@ from chatbot.rag.retrieval import fetch_service, retrieve
 
 logger = logging.getLogger(__name__)
 
-# Wider than the old k=3. Similarity is now the fallback path rather than
-# the main road, and the margin check needs enough candidates to see a
-# rival service at all — with k=3 over a 6-section service, every hit can
-# easily belong to the same service and the ambiguity check never fires.
-SIMILARITY_K = 5
+# Retrieval is now the MAIN path, not a fallback, so k is wider than the
+# old 3: a question can legitimately span two services, and the margin check
+# needs enough candidates to see a rival service at all.
+SIMILARITY_K = 8
+
+# Ceiling on what reaches the model. Similarity breadth plus a hinted
+# service's depth can add up, and an unbounded context is how a long answer
+# quietly becomes a truncated one — reasoning tokens are billed against the
+# same budget as the reply (see chatbot.llm).
+MAX_CONTEXT_CHUNKS = 12
 
 
 class Strategy(Enum):
@@ -145,33 +155,58 @@ def plan_and_gather(question: str, *, service_id=None, allow_clarify=True) -> Re
                            "matched_on": match.matched_on})
         return RetrievalPlan(Strategy.CLARIFY, match)
 
-    # 3. Exactly one service resolved -> load the whole thing.
-    if match.service_id:
-        chunks = fetch_service(match.service_id)
-        if not chunks:
-            # The registry claims coverage but the corpus has no file for
-            # it. That is D6 refusal path 1 — a known authority, a service
-            # we cannot actually document — and it is worth logging loudly
-            # because it means the registry and the corpus disagree.
-            logger.warning("route_service_has_no_content",
-                           extra={"service_id": match.service_id,
-                                  "hint": "registry covers a service the corpus does not provide"})
-            return RetrievalPlan(Strategy.REFUSE_NO_CONTENT, match)
-        logger.info("route_whole_service",
-                    extra={"service_id": match.service_id, "sections": len(chunks)})
-        return RetrievalPlan(Strategy.WHOLE_SERVICE, match, tuple(chunks))
-
-    # 4. Authority-only, or no opinion. Fall back to similarity — the only
-    #    path where the D2 threshold applies.
+    # 3. Everything else: RETRIEVAL ALWAYS RUNS.
+    #
+    # L1 used to short-circuit here — a resolved service_id loaded that whole
+    # file and similarity never ran. Measured cost of that:
+    #
+    #   «كم رسوم تجديد جواز السفر ورخصة السياقة؟»
+    #     old: whole_service -> passport only; the driving-licence half of
+    #          the question was silently dropped and the answer looked
+    #          confident anyway.
+    #     now: similarity surfaces BOTH fee sections (0.8566 and 0.8515),
+    #          and the answer can cover both.
+    #
+    # So the resolved service becomes a HINT that guarantees its sections
+    # are present, not a decision that suppresses everything else.
     chunks = retrieve(question, k=SIMILARITY_K)
-    logger.info("route_similarity",
-                extra={"verdict": match.verdict.value, "hits": len(chunks),
-                       "top_score": round(chunks[0]["score"], 4) if chunks else None})
-    if not chunks:
+    hinted = _merge_hinted_service(chunks, match.service_id)
+
+    # Registry/corpus drift: L1 named a service the corpus does not provide.
+    # Retrieval may still carry the answer, so this is not fatal — but it is
+    # a data-quality bug, and it goes unnoticed forever if nothing says so.
+    if match.service_id and not any(
+            c.get("service_id") == match.service_id for c in hinted):
+        logger.warning("route_service_has_no_content",
+                       extra={"service_id": match.service_id,
+                              "hint": "registry covers a service the corpus does not provide"})
+
+    if not hinted:
         return RetrievalPlan(Strategy.REFUSE_NO_CONTENT, match)
 
+    logger.info("route_retrieved", extra={
+        "verdict": match.verdict.value,
+        "l1_service": match.service_id,
+        "chunks": len(hinted),
+        "services": sorted({c.get("service_id") for c in hinted if c.get("service_id")}),
+        "top_score": round(chunks[0]["score"], 4) if chunks else None,
+    })
+    chunks = hinted
+
     # Undeclared ambiguity: two different services scoring near-identically.
-    ambiguous = _detect_margin_ambiguity(chunks)
+    #
+    # Suppressed when L1 resolved a service, because then the ambiguity is
+    # not undeclared — L1 already broke the tie, deterministically, on the
+    # words the citizen actually wrote. Observed when the demotion first
+    # landed: «كيف أجدد جواز سفري؟» retrieved
+    # mht-tour-guide-licence-renewal at 0.8636 against
+    # rop-passport-renewal at 0.8611, and Daleel asked whether the citizen
+    # meant a tour-guide licence. e5 scores «تجديد» heavily and the 0.0025
+    # separating those two is noise; «جواز سفري» is not.
+    #
+    # This is the boundary of the demotion: L1 no longer suppresses
+    # RETRIEVAL, but it still outranks a similarity tie-break.
+    ambiguous = None if match.service_id else _detect_margin_ambiguity(chunks)
     if ambiguous:
         logger.info("route_clarify_by_margin",
                     extra={"candidates": [o["service_id"] for o in ambiguous["options"]],
@@ -187,6 +222,35 @@ def plan_and_gather(question: str, *, service_id=None, allow_clarify=True) -> Re
         )
 
     return RetrievalPlan(Strategy.SIMILARITY, match, tuple(chunks))
+
+
+def _merge_hinted_service(chunks, service_id):
+    """
+    Similarity results, with the L1-resolved service guaranteed present.
+
+    Two failure modes this sits between:
+
+      - L1 bypassing retrieval entirely (the old behaviour) drops every
+        other service a question touches;
+      - pure similarity can rank one section of the right service highly
+        while leaving the rest of that service out, so «ما إجراءات تجديد
+        الجواز؟» might retrieve the fee section and not the steps.
+
+    Merging fixes both: similarity decides breadth, the L1 hint guarantees
+    depth on the service it is confident about. Retrieval order is kept, so
+    the best-matching chunk stays primary and drives the citation heading.
+    """
+    merged = list(chunks)
+    if not service_id:
+        return merged[:MAX_CONTEXT_CHUNKS]
+
+    seen = {(c.get("service_id"), c.get("section")) for c in merged}
+    for chunk in fetch_service(service_id):
+        key = (chunk.get("service_id"), chunk.get("section"))
+        if key not in seen:
+            seen.add(key)
+            merged.append(chunk)
+    return merged[:MAX_CONTEXT_CHUNKS]
 
 
 def _detect_margin_ambiguity(chunks):

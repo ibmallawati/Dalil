@@ -1057,14 +1057,29 @@ body {
   border: 1px solid var(--accent-line);
 }
 
-/* «غير محدد في المصدر» must read as a deliberate statement ABOUT the source
-   — not as a value, and not as an error. Dimmed and italic so it is visibly
-   a different kind of thing from real content. */
-.field__value--missing {
-  color: var(--text-dim);
-  font-style: italic;
-  font-size: 0.88rem;
+/* --- free-form answer body ----------------------------------------------
+   The answer is no longer a fixed set of labelled fields; it is Arabic prose
+   with optional lists, shaped by the question. These rules only need to make
+   running text and lists readable at the 1.85 line-height Arabic wants. */
+.answer__body > :first-child { margin-top: 0; }
+.answer__body > :last-child { margin-bottom: 0; }
+
+.answer__p {
+  margin: 0 0 10px;
+  font-size: 0.97rem;
 }
+
+.answer__list {
+  margin: 0 0 12px;
+  padding-inline-start: 22px;
+}
+.answer__list li {
+  margin-bottom: 6px;
+  font-size: 0.97rem;
+}
+.answer__list li::marker { color: var(--accent); }
+
+.answer__body strong { font-weight: 600; color: var(--text); }
 
 .card__source {
   margin-top: 16px;
@@ -1077,6 +1092,26 @@ body {
   color: var(--text-dim);
 }
 .card__source a { color: var(--accent); word-break: break-all; }
+
+/* An answer can now cite more than one service, so sources are a list.
+   The label switches to «المصادر:» when there is more than one. */
+.card__source-label {
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.card__source-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.card__source-row:last-child { margin-bottom: 0; }
+
+/* Textual attribution — a printed guide or a PDF page with no live URL.
+   Not a link, so it must not look like one, but it is still the source. */
+.card__source-ref { color: var(--text-dim); }
 
 /* Official vs non-official source. The scraper accepts arbitrary URLs, so a
    citizen must be able to tell a ministry page from a blog without reading

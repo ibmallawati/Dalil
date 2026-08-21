@@ -1,49 +1,40 @@
 """
-D5 + L3 tests — parsing, fallback, and the anti-hallucination post-pass.
+Generation tests — parsing, fallback, and the provenance guarantee.
 
 No network. The model is faked so the failure modes that matter can be
-produced on demand: fenced JSON, JSON wrapped in prose, truncated JSON,
-outright garbage, and a model that ignores the prompt and invents a fee.
+produced on demand: fenced JSON, JSON wrapped in prose, truncated output,
+outright garbage, and a model that tries to supply its own citation.
 
-The last one is the point of the file.
+The answer text itself is now free-form, so these tests assert on the
+CONTRACT around it — that something readable always comes back, that the
+confidence verdict is honoured, and that sources are never the model's.
 """
 
 import json
 
 import pytest
 
-from chatbot.agent import answer
+from chatbot.agent import answer as answer_mod
 from chatbot.agent.answer import (
+    NO_CONTEXT_REPLY,
     build_context,
     generate_answer,
-    parse_card,
-    prose_fallback,
+    parse_answer,
 )
-from chatbot.agent.card import CARD_FIELDS, NOT_IN_SOURCE
 
 
-def chunk(section, text="نص"):
+def chunk(section="الرسوم", text="عشرون ريالاً عمانياً",
+          service="تجديد جواز السفر", url="https://www.rop.gov.om/passport"):
     return {
-        "section": section, "text": text,
-        "service": "تجديد جواز السفر", "service_id": "rop-passport-renewal",
+        "text": text, "section": section, "service": service,
+        "service_id": "rop-passport-renewal",
         "authority": "شرطة عمان السلطانية",
-        "source_url": "https://www.rop.gov.om/passport",
-        "source_title": "تجديد جواز السفر",
+        "source_url": url, "source_title": "تجديد جواز السفر",
     }
 
 
-FULL = [chunk(f.section_ar) for f in CARD_FIELDS]
-NO_FEES = [chunk(f.section_ar) for f in CARD_FIELDS if f.section_ar != "الرسوم"]
-
-GOOD_JSON = {
-    "eligibility": "المواطنون العمانيون",
-    "required_documents": ["البطاقة الشخصية", "الجواز القديم"],
-    "steps": ["الدخول إلى التطبيق", "سداد الرسوم"],
-    "fees": "عشرون ريالاً عمانياً",
-    "estimated_time": "ثلاثة أيام عمل",
-    "where": "إلكترونياً أو في مراكز الخدمة",
-    "confidence": "high",
-}
+CHUNKS = [chunk()]
+GOOD = {"answer": "رسوم تجديد الجواز عشرون ريالاً عمانياً.", "confidence": "high"}
 
 
 class FakeCompletion:
@@ -54,165 +45,212 @@ class FakeCompletion:
             "finish_reason": finish_reason,
         })()]
         self.usage = type("U", (), {
-            "prompt_tokens": 100, "completion_tokens": 200, "total_tokens": 300,
+            "prompt_tokens": 100, "completion_tokens": 60, "total_tokens": 160,
         })()
 
 
 def fake_chat(monkeypatch, content, finish_reason="stop"):
-    monkeypatch.setattr(answer, "chat",
+    monkeypatch.setattr(answer_mod, "chat",
                         lambda *a, **k: FakeCompletion(content, finish_reason))
 
 
-# --- Parsing recovers responses that are correct but wrapped -------------
+# --- parsing recovers responses that are correct but wrapped -------------
 
 def test_parses_raw_json():
-    assert parse_card(json.dumps(GOOD_JSON))["fees"] == "عشرون ريالاً عمانياً"
+    assert parse_answer(json.dumps(GOOD, ensure_ascii=False))["confidence"] == "high"
 
 
 def test_parses_fenced_json():
-    """Models emit ```json fences despite being told not to."""
-    fenced = "```json\n" + json.dumps(GOOD_JSON, ensure_ascii=False) + "\n```"
-    assert parse_card(fenced)["confidence"] == "high"
+    fenced = "```json\n" + json.dumps(GOOD, ensure_ascii=False) + "\n```"
+    assert parse_answer(fenced)["answer"] == GOOD["answer"]
 
 
 def test_parses_json_embedded_in_prose():
-    noisy = "إليك الإجابة:\n" + json.dumps(GOOD_JSON, ensure_ascii=False) + "\nأتمنى أن يفيدك."
-    assert parse_card(noisy)["fees"] == "عشرون ريالاً عمانياً"
+    noisy = "إليك الإجابة:\n" + json.dumps(GOOD, ensure_ascii=False) + "\nانتهى."
+    assert parse_answer(noisy)["answer"] == GOOD["answer"]
 
 
 @pytest.mark.parametrize("bad", ["", None, "لا يوجد JSON هنا", "{broken", "[1,2,3]"])
 def test_unparseable_returns_none(bad):
-    assert parse_card(bad) is None
+    assert parse_answer(bad) is None
 
 
-# --- The screen is never blank -------------------------------------------
+def test_json_without_an_answer_key_is_not_accepted():
+    """A well-formed object with no answer is not an answer."""
+    assert parse_answer('{"confidence": "high"}') is None
 
-def test_malformed_response_degrades_to_prose_with_its_citation(monkeypatch):
-    """
-    D5: a malformed JSON response must never blank the screen mid-demo. The
-    Arabic text is still useful, so it is shown as prose — with the real
-    source, which comes from the corpus rather than the model.
-    """
-    fake_chat(monkeypatch, "الرسوم عشرون ريالاً عمانياً، ويمكن التجديد إلكترونياً.")
-    result = generate_answer("كم الرسوم؟", FULL)
-    assert result["format"] == "prose"
-    assert "عشرون" in result["text"]
+
+# --- the screen is never blank -------------------------------------------
+
+def test_malformed_response_still_returns_the_text_with_its_sources(monkeypatch):
+    fake_chat(monkeypatch, "رسوم التجديد عشرون ريالاً عمانياً.")
+    result = generate_answer("كم الرسوم؟", CHUNKS)
+    assert "عشرون" in result["answer"]
     assert result["source_url"] == "https://www.rop.gov.om/passport"
-
-
-def test_prose_fallback_strips_code_fences():
-    out = prose_fallback("```\nنص الإجابة\n```", FULL)
-    assert out["text"] == "نص الإجابة"
 
 
 def test_empty_model_reply_still_returns_something(monkeypatch):
     fake_chat(monkeypatch, "")
-    result = generate_answer("سؤال", FULL)
-    assert result["text"]
+    assert generate_answer("سؤال", CHUNKS)["answer"]
 
 
-def test_no_chunks_returns_a_fully_marked_card_without_calling_the_model(monkeypatch):
+def test_no_chunks_returns_an_honest_reply_without_calling_the_model(monkeypatch):
     def explode(*a, **k):
         raise AssertionError("must not call the model with no grounding")
-    monkeypatch.setattr(answer, "chat", explode)
+    monkeypatch.setattr(answer_mod, "chat", explode)
     result = generate_answer("سؤال", [])
+    assert result["answer"] == NO_CONTEXT_REPLY
     assert result["confidence"] == "none"
-    assert result["fees"] == NOT_IN_SOURCE
 
 
-# --- The post-pass: the guarantee ---------------------------------------
-
-def test_invented_fee_is_overwritten_when_the_section_is_absent(monkeypatch):
-    """
-    THE test in this file.
-
-    The context has no «الرسوم» section. The model ignores the prompt and
-    supplies a confident fee anyway. Without the post-pass this reaches the
-    citizen as an invented government fee underneath a real ROP source URL
-    — a fabrication the citation makes look verified.
-    """
-    invented = dict(GOOD_JSON, fees="خمسون ريالاً عمانياً")
-    fake_chat(monkeypatch, json.dumps(invented, ensure_ascii=False))
-    result = generate_answer("كم الرسوم؟", NO_FEES)
-    assert result["fees"] == NOT_IN_SOURCE
-    # Fields the context DOES support survive untouched.
-    assert result["steps"] == ["الدخول إلى التطبيق", "سداد الرسوم"]
-
+# --- the provenance guarantee --------------------------------------------
 
 def test_model_cannot_choose_its_own_citation(monkeypatch):
+    """
+    A fabricated citation survives a glance in a way a fabricated fact does
+    not, so provenance is overwritten from chunk metadata after generation.
+    """
     fake_chat(monkeypatch, json.dumps(
-        dict(GOOD_JSON, source_url="https://invented.example/x"), ensure_ascii=False))
-    result = generate_answer("سؤال", FULL)
-    assert result["source_url"] == "https://www.rop.gov.om/passport"
+        {**GOOD, "source_url": "https://invented.example/x"}, ensure_ascii=False))
+    assert generate_answer("سؤال", CHUNKS)["source_url"] == \
+        "https://www.rop.gov.om/passport"
 
+
+def test_answer_spanning_two_services_cites_both(monkeypatch):
+    fake_chat(monkeypatch, json.dumps({**GOOD, "used": [1, 2]},
+                                      ensure_ascii=False))
+    chunks = [
+        chunk(service="تجديد جواز السفر", url="https://www.rop.gov.om/passport"),
+        chunk(service="تجديد رخصة السياقة", url="https://www.rop.gov.om/licence"),
+    ]
+    assert len(generate_answer("سؤال", chunks)["sources"]) == 2
+
+
+# --- citing what was USED, not what was retrieved ------------------------
+# Retrieval widened when L1 stopped bypassing it. Live before this: a
+# passport+licence question retrieved five services and cited all five,
+# putting «تجديد رخصة مرشد سياحي» under an answer about passports.
+
+def test_only_the_passages_the_model_used_are_cited(monkeypatch):
+    fake_chat(monkeypatch, json.dumps({**GOOD, "used": [1]}, ensure_ascii=False))
+    chunks = [
+        chunk(service="تجديد جواز السفر", url="https://www.rop.gov.om/passport"),
+        chunk(service="تجديد رخصة مرشد سياحي", url="https://mht.gov.om/guide"),
+    ]
+    sources = generate_answer("كم رسوم تجديد الجواز؟", chunks)["sources"]
+    assert [s["service"] for s in sources] == ["تجديد جواز السفر"]
+
+
+def test_the_primary_source_follows_the_selection(monkeypatch):
+    """
+    metadata_from reads source_url off the FIRST cited chunk, so narrowing
+    has to move the headline citation too — not just shorten the list.
+    """
+    fake_chat(monkeypatch, json.dumps({**GOOD, "used": [2]}, ensure_ascii=False))
+    chunks = [
+        chunk(service="تجديد رخصة مرشد سياحي", url="https://mht.gov.om/guide"),
+        chunk(service="تجديد جواز السفر", url="https://www.rop.gov.om/passport"),
+    ]
+    assert generate_answer("سؤال", chunks)["source_url"] == \
+        "https://www.rop.gov.om/passport"
+
+
+@pytest.mark.parametrize("used", [None, [], "1,2", ["x"], [99], 3])
+def test_an_unusable_selection_cites_everything(monkeypatch, used):
+    """
+    Over-citing is a flaw; dropping the citation an answer rests on is a
+    missing attribution, which is worse. Every malformed shape a model can
+    emit here degrades to the safe direction.
+    """
+    fake_chat(monkeypatch, json.dumps({**GOOD, "used": used}, ensure_ascii=False))
+    chunks = [
+        chunk(service="تجديد جواز السفر", url="https://www.rop.gov.om/passport"),
+        chunk(service="تجديد رخصة السياقة", url="https://www.rop.gov.om/licence"),
+    ]
+    assert len(generate_answer("سؤال", chunks)["sources"]) == 2
+
+
+def test_string_indices_are_accepted(monkeypatch):
+    """Models emit ["1"] as readily as [1]; both mean the same passage."""
+    fake_chat(monkeypatch, json.dumps({**GOOD, "used": ["1"]}, ensure_ascii=False))
+    chunks = [
+        chunk(service="تجديد جواز السفر", url="https://www.rop.gov.om/passport"),
+        chunk(service="تجديد رخصة السياقة", url="https://www.rop.gov.om/licence"),
+    ]
+    assert len(generate_answer("سؤال", chunks)["sources"]) == 1
+
+
+def test_selecting_a_passage_cannot_invent_a_source(monkeypatch):
+    """
+    The model picks AMONG the passages it was given. It has no way to add
+    one, so narrowing the citation list does not hand it provenance — the
+    URL still comes from chunk metadata.
+    """
+    fake_chat(monkeypatch, json.dumps(
+        {**GOOD, "used": [1], "source_url": "https://invented.example/x"},
+        ensure_ascii=False))
+    assert generate_answer("سؤال", CHUNKS)["source_url"] == \
+        "https://www.rop.gov.om/passport"
+
+
+def test_context_numbers_each_passage(monkeypatch):
+    """The numbers are what `used` refers to, so they must be in the prompt."""
+    context = build_context([chunk(section="الرسوم"), chunk(section="الخطوات")])
+    assert "[1]" in context and "[2]" in context
+
+
+# --- L3 confidence --------------------------------------------------------
 
 def test_bad_confidence_from_the_model_degrades_to_none(monkeypatch):
-    fake_chat(monkeypatch, json.dumps(dict(GOOD_JSON, confidence="مؤكد"),
+    fake_chat(monkeypatch, json.dumps({**GOOD, "confidence": "مؤكد"},
                                       ensure_ascii=False))
-    assert generate_answer("سؤال", FULL)["confidence"] == "none"
+    assert generate_answer("سؤال", CHUNKS)["confidence"] == "none"
 
 
 def test_l3_none_is_preserved(monkeypatch):
     """
-    When the model correctly reports it has no grounds, that verdict must
-    survive to the UI — it is what triggers the refusal rendering instead
-    of a checklist.
+    When the model reports it has no grounds, that verdict must survive —
+    app.py turns it into a refusal rather than presenting the text.
     """
     fake_chat(monkeypatch, json.dumps(
-        {"confidence": "none", **{f.key: NOT_IN_SOURCE for f in CARD_FIELDS}},
-        ensure_ascii=False))
-    result = generate_answer("سؤال خارج النطاق", FULL)
-    assert result["confidence"] == "none"
+        {"answer": "لا تتوفر معلومات", "confidence": "none"}, ensure_ascii=False))
+    assert generate_answer("سؤال خارج النطاق", CHUNKS)["confidence"] == "none"
 
 
-# --- Truncation is named, not mysterious ---------------------------------
+# --- truncation is named, not mysterious ---------------------------------
 
 def test_truncated_reply_is_logged_as_truncation(monkeypatch, caplog):
-    """
-    Measured: a long service needs ~832 completion tokens, and at
-    max_tokens=500 the JSON does not parse. That must surface as
-    'truncated', not as an unexplained parse failure.
-    """
-    fake_chat(monkeypatch, '{"eligibility": "المواطنون', finish_reason="length")
+    fake_chat(monkeypatch, '{"answer": "الرسوم', finish_reason="length")
     with caplog.at_level("WARNING"):
-        result = generate_answer("سؤال", FULL)
+        result = generate_answer("سؤال", CHUNKS)
     assert "answer_truncated" in caplog.text
-    assert result["format"] == "prose"
+    assert result["answer"]
 
 
-def test_blocked_hallucination_is_logged(monkeypatch, caplog):
-    """Evidence the layer earns its place, visible in the logs."""
-    fake_chat(monkeypatch, json.dumps(dict(GOOD_JSON, fees="خمسون ريالاً"),
-                                      ensure_ascii=False))
-    with caplog.at_level("WARNING"):
-        generate_answer("كم الرسوم؟", NO_FEES)
-    assert "ungrounded_fields_overwritten" in caplog.text
+# --- context assembly ----------------------------------------------------
 
-
-# --- Context assembly ----------------------------------------------------
-
-def test_context_carries_authority_and_service():
-    context = build_context(FULL)
-    assert "شرطة عمان السلطانية" in context
+def test_context_labels_each_passage_with_its_service():
+    """
+    An answer can span services, so the model must be able to tell which
+    passage came from which — otherwise it cannot attribute correctly.
+    """
+    context = build_context([
+        chunk(service="تجديد جواز السفر", section="الرسوم"),
+        chunk(service="تجديد رخصة السياقة", section="الرسوم"),
+    ])
     assert "تجديد جواز السفر" in context
-    assert "## الرسوم" in context
+    assert "تجديد رخصة السياقة" in context
 
 
-def test_history_is_included_but_grounding_is_not_taken_from_it(monkeypatch):
-    """
-    Prior turns give the model the thread (e.g. the answer to a clarifying
-    question). The system prompt is explicit that only «المعلومات» may be
-    used as grounding.
-    """
+def test_history_is_passed_but_grounding_is_separate(monkeypatch):
     captured = {}
 
     def capture(messages, **kw):
         captured["messages"] = messages
-        return FakeCompletion(json.dumps(GOOD_JSON, ensure_ascii=False))
+        return FakeCompletion(json.dumps(GOOD, ensure_ascii=False))
 
-    monkeypatch.setattr(answer, "chat", capture)
-    generate_answer("كم الرسوم؟", FULL,
+    monkeypatch.setattr(answer_mod, "chat", capture)
+    generate_answer("كم الرسوم؟", CHUNKS,
                     history=[{"role": "user", "content": "سؤال سابق"}])
-    roles = [m["role"] for m in captured["messages"]]
-    assert roles == ["system", "user", "user"]
-    assert "المعلومات" in captured["messages"][0]["content"]
+    assert [m["role"] for m in captured["messages"]] == ["system", "user", "user"]
+    assert "النصوص المتاحة" in captured["messages"][0]["content"]

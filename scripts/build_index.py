@@ -69,16 +69,16 @@ def chunk_text(text, size=CHUNK_SIZE, overlap=CHUNK_OVERLAP):
 
 
 def build_records_from_pdfs(folder):
-    """The Phase 6 hybrid text-layer/OCR route, retained for scale."""
-    from chatbot.rag.ocr import extract_text_hybrid
+    """The Phase 6 OCR route, retained for scale."""
+    from chatbot.rag.ocr import extract_text
 
     records = []
-    page_source_counts = {"text_layer": 0, "ocr": 0}
+    pages_read = 0
     for path in glob.glob(os.path.join(str(folder), "*.pdf")):
         filename = os.path.basename(path)
         print(f"Extracting {filename} ...")
-        for page in extract_text_hybrid(path):
-            page_source_counts[page["source"]] += 1
+        for page in extract_text(path):
+            pages_read += 1
             for chunk in chunk_text(page["text"]):
                 if chunk.strip():
                     records.append({
@@ -86,13 +86,9 @@ def build_records_from_pdfs(folder):
                         "embed_text": chunk,
                         "source": filename,
                         "page": page["page"],
-                        "extraction_source": page["source"],
                         "fixture": False,
                     })
-    print(
-        f"OCR summary: {page_source_counts['text_layer']} pages via text_layer, "
-        f"{page_source_counts['ocr']} pages via ocr"
-    )
+    print(f"OCR summary: {pages_read} pages, {len(records)} chunks")
     return records
 
 

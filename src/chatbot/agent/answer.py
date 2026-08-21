@@ -1,41 +1,80 @@
 """
-answer.py — D5 (structured card) and L3 (grounding self-check), in ONE call.
+answer.py — generation (D5) and the grounding self-check (L3), in ONE call.
 
-D5 asks the model to extract a checklist from the retrieved sections. L3
-asks it to judge whether those sections actually ground the answer, and to
-say confidence:"none" when they do not.
+The model is given the retrieved passages and asked for two things: an
+answer to the question actually asked, and an honest verdict on whether the
+passages supported it.
 
-These are one request, not two. A second call would double the free-tier
-quota burn and add a second thing that can rate-limit mid-demo, for a
-judgement the model is already making implicitly while it extracts.
+One request, not two. A second call would double free-tier quota burn and
+add another thing that can rate-limit mid-demo, for a judgement the model is
+already making implicitly while it writes.
 
---- Defence in depth, because a prompt is not a guarantee ---------------
+--- The answer shape follows the question --------------------------------
 
-The prompt instructs the model not to invent. That instruction is
-necessary and not sufficient — a model asked for six fields tends to
-produce six plausible fields. So three independent mechanisms stack:
+This used to emit a fixed six-field card and pad every gap with «غير محدد
+في المصدر». It now returns free-form Arabic, because:
 
-  1. WHOLE-SERVICE RETRIEVAL (chatbot.agent.router)
-     Every section of the resolved service is loaded, so the context is
-     not missing fields that the corpus actually has. Top-k retrieval was
-     the thing that structurally forced the model to fill gaps.
+  - «كم الرسوم؟» deserves the fee, not six sections;
+  - «ما الفرق بين التجديد والإصدار؟» is a comparison, which no per-service
+    template can express;
+  - a question spanning two authorities needs an answer spanning two, and
+    the retrieval layer now supplies exactly that.
 
-  2. THE PROMPT (here)
-     JSON-only, Arabic-only, use only the supplied text, mark anything
-     absent as «غير محدد في المصدر», report confidence honestly.
+The model chooses the form — a sentence, a list, numbered steps — from a
+narrow markdown subset the UI renders as real DOM nodes.
 
-  3. THE POST-PASS (chatbot.agent.card.apply_missing_field_policy)
-     Any field whose '##' section is absent from the CONTEXT is
-     overwritten regardless of what the model returned. source_url is
-     taken from chunk metadata, never from the model. This one is
-     structural: it holds even if the model ignores the prompt entirely.
+--- Answering the next question too -------------------------------------
 
-Only the third is a guarantee. The first two make it rarely needed.
+A literal answer is often a useless one. «أين أجدد بطاقتي؟» answered with
+only a location sends someone to a counter without the right paper, and
+the fee and document list were sitting in the same retrieved passage.
 
---- Never blank the screen ----------------------------------------------
+So the prompt asks for the direct answer FIRST, then whatever genuinely
+helps finish the task — bounded by two rules that keep this from becoming
+the card again:
 
-Every parse path has a fallback. A malformed response degrades to prose
-with the same source citation; a failed call degrades to an honest refusal.
+  1. only from the retrieved passages, never from general knowledge;
+  2. only what relates to THIS question, never everything available.
+
+The distinction from the old card is what drives the selection. The card
+emitted the same six fields whatever was asked; this picks its additions
+from the question, so «كم الرسوم؟» and «كيف أسجل؟» produce different
+shapes as well as different content. Identical structure across answers is
+the signal that it has regressed into a template.
+
+--- What did NOT change, and must not ------------------------------------
+
+Dropping the template is not the same as dropping grounding. Three things
+still hold:
+
+  1. ONLY the supplied passages may be used. No general knowledge.
+  2. Silence is an answer. If the passages do not cover it, say so — never
+     fill the gap from training data. A wrong government fee costs a citizen
+     a wasted trip to a counter.
+  3. PROVENANCE IS NOT THE MODEL'S. Sources are attached from chunk
+     metadata after generation, overwriting anything the model wrote. A
+     fabricated citation survives a glance in a way a fabricated fact does
+     not, which makes it the more dangerous of the two.
+
+--- Citing what was used, not what was retrieved --------------------------
+
+Retrieval got wider when L1 stopped bypassing it, and that broke something
+subtle. «كم رسوم تجديد جواز السفر ورخصة السياقة؟» retrieves five services;
+the answer uses two. Citing all five puts «تجديد رخصة مرشد سياحي» under an
+answer about passports, and a citation next to a fee is a claim that the
+fee came from there.
+
+So the model reports which passages it drew on, and only those are cited.
+This does NOT hand it provenance: it selects from the passages it was
+given and cannot introduce a source that is not in the corpus. Every URL
+and title still comes from chunk metadata. An unusable or empty selection
+falls back to citing everything — over-citing is a flaw, under-citing is a
+missing attribution.
+
+--- Never blank the screen -----------------------------------------------
+
+Every parse path has a fallback: malformed JSON degrades to the raw text
+with its citations intact, a failed call degrades to an honest refusal.
 Nothing here can return nothing.
 """
 
@@ -43,13 +82,7 @@ import json
 import logging
 import re
 
-from chatbot.agent.card import (
-    CARD_FIELDS,
-    NOT_IN_SOURCE,
-    apply_missing_field_policy,
-    empty_card,
-    metadata_from,
-)
+from chatbot.agent.card import metadata_from, normalise_confidence
 from chatbot.llm import chat, usage_of
 
 logger = logging.getLogger(__name__)
@@ -57,90 +90,160 @@ logger = logging.getLogger(__name__)
 # Models wrap JSON in ```json fences despite being told not to. Cheap to
 # strip, and stripping it turns a "failed" answer into a good one.
 _FENCE = re.compile(r"^\s*```(?:json)?\s*(.*?)\s*```\s*$", re.DOTALL)
-# Last resort: find the outermost {...} in a reply with prose around it.
+# Last resort: the outermost {...} in a reply with prose around it.
 _BRACES = re.compile(r"\{.*\}", re.DOTALL)
 
-SYSTEM_PROMPT = """أنت «دليل»، مساعد ذكي للخدمات الحكومية في سلطنة عُمان.
+SYSTEM_PROMPT = """أنت «دليل»، مساعد يجيب عن إجراءات الخدمات الحكومية في سلطنة عُمان.
 
-اللغة: العربية فقط. لا تستخدم الإنجليزية إطلاقاً.
+اللغة: العربية فقط.
 
-أعد كائن JSON واحداً فقط، دون أي نص قبله أو بعده، ودون علامات ```.
+أعد كائن JSON واحداً فقط، دون أي نص قبله أو بعده، ودون علامات ```:
 
-المفاتيح المطلوبة:
-- eligibility: نص — الفئة المستهدفة بالخدمة
-- required_documents: مصفوفة نصوص — المستندات المطلوبة
-- steps: مصفوفة نصوص — خطوات إنجاز المعاملة بالترتيب
-- fees: نص — الرسوم
-- estimated_time: نص — المدة المتوقعة
-- where: نص — أين تتم المعاملة
-- confidence: واحد من "high" أو "partial" أو "none"
+{
+  "answer": "الإجابة",
+  "confidence": "high" أو "partial" أو "none",
+  "used": [أرقام النصوص التي استندت إليها فعلاً]
+}
 
-قواعد صارمة:
-1. استخدم المعلومات المرفقة أدناه فقط. لا تستخدم معرفتك العامة إطلاقاً.
-2. لا تخترع أي رسوم أو مستندات أو مدد زمنية. هذه معلومات حكومية،
+قواعد الإجابة:
+1. ابدأ بالإجابة المباشرة. أول سطر يجيب عن السؤال ولا يمهّد له.
+
+2. ثم أضف ما يحتاجه المواطن فعلاً لإنجاز معاملته — بشرط أن يكون في
+   النصوص المرفقة. اسأل نفسك: «ما الذي سيسأل عنه بعد هذا مباشرة؟»
+   من سأل «أين أجدد بطاقتي؟» ينفعه أن يعرف الرسوم والمستندات قبل أن
+   يذهب، لا بعد أن يصل ويُرَدّ.
+
+   شرطان لا يُخالَفان:
+   - لا تضف معلومة غير موجودة في النصوص. السكوت أفضل من التخمين.
+   - لا تضف معلومة لا صلة لها بالسؤال لمجرد أنها متاحة أمامك.
+   وإن لم تجد إضافة تنفعه، اكتفِ بالإجابة المباشرة وتوقّف.
+
+3. لا يوجد قالب، والإضافة تختلف باختلاف السؤال:
+   - «كم الرسوم؟» ← المبلغ، ثم ما يغيّره (الفئة، المدة) إن ورد.
+   - «أين أجدد؟» ← المكان، ثم ما يجب إحضاره معه.
+   - «كيف أسجّل؟» ← الخطوات، ثم المدة المتوقعة.
+   إذا تشابهت إجاباتك في الشكل والترتيب، فأنت تملأ قالباً لا تجيب سؤالاً.
+
+4. اختر البنية التي يفرضها المحتوى نفسه: جملة واحدة لسؤال بسيط، خطوات
+   مرقّمة لإجراء، قائمة قصيرة لعناصر متوازية، سطر **بارز** يفصل مجموعتين.
+   الإجابة من سطر واحد إجابة صحيحة إذا كان السؤال يستحق سطراً واحداً.
+
+5. إذا كان السؤال يخص أكثر من خدمة أو جهة، اذكرها جميعاً بوضوح.
+
+قواعد المصدر — صارمة:
+6. استخدم النصوص المرفقة فقط. لا تضف أي معلومة من معرفتك العامة إطلاقاً.
+   هذه القاعدة تسري على الإضافات في البند 2 كما تسري على الإجابة نفسها.
+7. لا تخترع رسوماً أو مستندات أو مدداً زمنية. هذه معلومات حكومية،
    والمعلومة الخاطئة تعني رحلة ضائعة على المواطن.
-3. أي حقل لا تجد له إجابة في المعلومات المرفقة اكتب فيه بالضبط:
-   «غير محدد في المصدر»
-4. انقل الرسوم والمدد كما وردت حرفياً دون إعادة صياغة.
-5. confidence:
-   - "high"    إذا كانت المعلومات المرفقة تجيب على سؤال المستخدم
-   - "partial" إذا كانت تجيب على جزء منه فقط
-   - "none"    إذا كانت لا تحتوي على إجابة السؤال إطلاقاً
-   إذا كانت الإجابة "none" فلا تخترع إجابة — اترك الحقول
-   «غير محدد في المصدر»."""
+8. إذا كانت النصوص لا تغطي جزءاً من السؤال، قل ذلك صراحةً بدل تخمينه.
+9. انقل الأرقام والرسوم كما وردت حرفياً. لا تضف وحدة عملة لم ترد في النص.
+10. لا تذكر روابط أو أسماء مصادر داخل الإجابة — تُضاف تلقائياً بعد ذلك.
+
+confidence:
+  "high"    النصوص تجيب عن السؤال بالكامل
+  "partial" تجيب عن جزء منه فقط
+  "none"    لا تحتوي على إجابة السؤال
+
+used:
+  كل نص مرفق مسبوق برقم بين قوسين مثل [3].
+  اذكر أرقام النصوص التي استعملتها في الإجابة فقط.
+  لا تذكر رقم نص قرأته ولم تستفد منه — الأرقام تُستخدم لعرض المصادر
+  أسفل الإجابة، وذكر مصدر لم يُستعمل يوحي بأنه سند لمعلومة ليست منه.
+
+تنسيق مسموح داخل answer: سطر يبدأ بـ - لعنصر قائمة، أو 1. لخطوة مرقّمة،
+و**نص** للتأكيد. لا تستخدم أي تنسيق آخر."""
+
+# Said when there is nothing retrieved at all. Not a model call — there is
+# nothing to ground an answer in, and asking anyway invites improvisation.
+NO_CONTEXT_REPLY = (
+    "لا تتوفر لدي معلومات موثّقة تجيب عن هذا السؤال ضمن المصادر المتاحة."
+)
 
 
 def build_context(chunks):
-    """The retrieved sections, as the model will see them."""
+    """
+    The retrieved passages, numbered and labelled.
+
+    The label lets the model attribute correctly when an answer spans more
+    than one service; the number lets it say which passages it actually
+    used, so the citations under the answer match the answer.
+    """
     if not chunks:
         return ""
-    first = chunks[0]
-    header = f"الجهة: {first.get('authority', '')} | الخدمة: {first.get('service', '')}"
-    body = "\n".join(f"## {c.get('section', '')}\n{c.get('text', '')}" for c in chunks)
-    return f"{header}\n\n{body}"
+    blocks = []
+    for index, chunk in enumerate(chunks, start=1):
+        header = " | ".join(
+            part for part in (chunk.get("authority"), chunk.get("service"),
+                              chunk.get("section")) if part
+        )
+        blocks.append(f"### [{index}] {header}\n{chunk.get('text', '')}")
+    return "\n\n".join(blocks)
 
 
-def parse_card(text):
+def used_chunks(chunks, used):
+    """
+    Narrow `chunks` to the passages the model reported drawing on.
+
+    Anything unusable — missing, not a list, non-numeric, every index out of
+    range — returns all of them. Over-citing is a flaw; dropping a citation
+    the answer genuinely rests on is a missing attribution, which is worse.
+    """
+    if not isinstance(used, (list, tuple)):
+        return chunks
+    picked = []
+    for value in used:
+        try:
+            index = int(value) - 1
+        except (TypeError, ValueError):
+            continue
+        if 0 <= index < len(chunks) and chunks[index] not in picked:
+            picked.append(chunks[index])
+    return picked or chunks
+
+
+def parse_answer(text):
     """
     Turn a model reply into a dict, or None.
 
-    Three attempts before giving up, because each recovers a response that
-    is correct but wrapped: raw JSON, fenced JSON, then JSON embedded in
-    prose. Returning None here means the prose fallback runs — the screen
-    is never blank either way, but a recovered card is a much better answer.
+    Three attempts, because each recovers a response that is correct but
+    wrapped: raw JSON, fenced JSON, JSON embedded in prose.
     """
     if not text:
         return None
-    for candidate in (text.strip(),
-                      (_FENCE.match(text).group(1) if _FENCE.match(text) else None),
-                      (_BRACES.search(text).group(0) if _BRACES.search(text) else None)):
-        if not candidate:
-            continue
+    candidates = [text.strip()]
+    fenced = _FENCE.match(text)
+    if fenced:
+        candidates.append(fenced.group(1))
+    braced = _BRACES.search(text)
+    if braced:
+        candidates.append(braced.group(0))
+
+    for candidate in candidates:
         try:
             parsed = json.loads(candidate)
         except (json.JSONDecodeError, TypeError):
             continue
-        if isinstance(parsed, dict):
+        if isinstance(parsed, dict) and parsed.get("answer"):
             return parsed
     return None
 
 
-def prose_fallback(text, chunks):
+def _fallback(raw, chunks):
     """
-    A malformed JSON reply still contains a usable Arabic answer. Show it
-    as prose with the real citation rather than discarding it.
-
-    D5 says a malformed response must never blank the screen mid-demo.
+    Unparseable JSON still usually contains a usable Arabic answer. Show it
+    rather than discarding it — with the same citations attached.
     """
-    cleaned = (text or "").strip()
-    match = _FENCE.match(cleaned)
-    if match:
-        cleaned = match.group(1).strip()
+    cleaned = (raw or "").strip()
+    fenced = _FENCE.match(cleaned)
+    if fenced:
+        cleaned = fenced.group(1).strip()
+    # Strip a bare JSON skeleton if the model emitted keys but broke syntax.
+    cleaned = re.sub(r'^\s*[\{\}"]+\s*|\s*[\{\}"]+\s*$', "", cleaned).strip()
     return {
-        "format": "prose",
-        "text": cleaned or "تعذر إنتاج إجابة منسقة.",
-        **metadata_from(chunks),
+        "format": "answer",
+        "answer": cleaned or "تعذر إنتاج إجابة منسقة.",
         "confidence": "partial" if chunks else "none",
+        **metadata_from(chunks),
     }
 
 
@@ -148,24 +251,28 @@ def generate_answer(question, chunks, history=None, model=None):
     """
     Produce one answer. Returns a dict the UI renders directly.
 
-    `format` is 'card' or 'prose'. Both carry the same provenance fields,
-    so the citation is present either way.
+    Always has `answer` (Arabic text), `confidence`, and a `sources` list.
     """
     if not chunks:
-        # Nothing retrieved: there is nothing to ground an answer in, and
-        # asking the model anyway is asking it to improvise.
-        return {"format": "card", **empty_card(confidence="none")}
+        return {
+            "format": "answer",
+            "answer": NO_CONTEXT_REPLY,
+            "confidence": "none",
+            **metadata_from([]),
+        }
 
-    context = build_context(chunks)
-    messages = [{"role": "system", "content": SYSTEM_PROMPT + "\n\nالمعلومات:\n" + context}]
+    messages = [{
+        "role": "system",
+        "content": SYSTEM_PROMPT + "\n\nالنصوص المتاحة:\n" + build_context(chunks),
+    }]
     # Prior turns give the model the thread of the conversation (e.g. the
     # citizen's answer to a clarifying question) without becoming grounding:
-    # the system prompt above is explicit that only «المعلومات» may be used.
+    # rule 4 above is explicit that only the supplied passages may be used.
     messages.extend(history or [])
     messages.append({"role": "user", "content": question})
 
-    # `model` pins generation to one model, bypassing the failover chain.
-    # The D7 harness uses it to keep the demo model's daily quota intact.
+    # `model` pins generation to one model, bypassing the failover chain —
+    # the eval harness uses it to keep the demo model's daily quota intact.
     completion = chat(messages, model=model)
     usage = usage_of(completion)
     raw = completion.choices[0].message.content or ""
@@ -175,33 +282,40 @@ def generate_answer(question, chunks, history=None, model=None):
         "completion_tokens": usage.get("completion_tokens"),
         "reasoning_tokens": usage.get("reasoning_tokens"),
         "finish_reason": usage.get("finish_reason"),
-        "sections": len(chunks),
+        "chunks": len(chunks),
+        "services": sorted({c.get("service_id") for c in chunks if c.get("service_id")}),
     })
 
-    # A truncated reply cannot be valid JSON. Say so explicitly rather than
-    # letting it surface as a mysterious parse failure.
+    # A truncated reply cannot be valid JSON. Name it, so it does not
+    # surface later as a mysterious parse failure.
     if usage.get("finish_reason") == "length":
         logger.warning("answer_truncated", extra={
             "hint": "raise LLM_MAX_TOKENS; reasoning tokens count against it",
             "completion_tokens": usage.get("completion_tokens"),
         })
 
-    parsed = parse_card(raw)
+    parsed = parse_answer(raw)
     if parsed is None:
         logger.warning("answer_json_parse_failed",
-                       extra={"raw_head": raw[:200], "served_by": usage.get("served_by")})
-        return {**prose_fallback(raw, chunks), "_served_by": usage.get("served_by")}
+                       extra={"raw_head": raw[:200],
+                              "served_by": usage.get("served_by")})
+        return {**_fallback(raw, chunks), "_served_by": usage.get("served_by")}
 
-    card = apply_missing_field_policy(parsed, chunks)
-    overwritten = [f.key for f in CARD_FIELDS
-                   if card[f.key] == NOT_IN_SOURCE and parsed.get(f.key)
-                   not in (None, "", [], NOT_IN_SOURCE)]
-    if overwritten:
-        # The model supplied a value for a field the context does not
-        # support. The post-pass caught it. Worth an explicit line: this is
-        # a hallucination that was blocked, and it is evidence the layer
-        # earns its place.
-        logger.warning("ungrounded_fields_overwritten",
-                       extra={"fields": overwritten, "served_by": usage.get("served_by")})
+    cited = used_chunks(chunks, parsed.get("used"))
+    if len(cited) < len(chunks):
+        logger.info("answer_narrowed_citations", extra={
+            "retrieved": len(chunks), "cited": len(cited),
+            "services": sorted({c.get("service_id") for c in cited
+                                if c.get("service_id")}),
+        })
 
-    return {"format": "card", **card, "_served_by": usage.get("served_by")}
+    return {
+        "format": "answer",
+        "answer": str(parsed.get("answer", "")).strip() or NO_CONTEXT_REPLY,
+        "confidence": normalise_confidence(parsed.get("confidence")),
+        # Attached AFTER the model, overwriting anything it invented. The
+        # model chose WHICH of these passages to cite; it never supplied the
+        # URL, title or authority for any of them.
+        **metadata_from(cited),
+        "_served_by": usage.get("served_by"),
+    }

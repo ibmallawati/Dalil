@@ -1,142 +1,100 @@
 """
-card.py — D5's answer schema and the missing-field policy.
+card.py — answer provenance and the confidence vocabulary.
 
-This module holds the SHAPE of a Daleel answer and the rule for what
-happens when the corpus does not supply a field. It deliberately contains
-no prompt and no model call: the schema has to be pinned down and testable
-independently of generation, because the rule below is a correctness
-property, not a prompting preference.
+--- What this used to be, and why it changed -----------------------------
 
---- The rule that matters ------------------------------------------------
+This module used to define a FIXED six-field answer card (eligibility,
+documents, steps, fees, duration, where) plus a post-pass forcing every
+unsupported field to «غير محدد في المصدر».
 
-A field with no supporting section in the retrieved context renders as
+That was right for a corpus of six near-identical ROP procedures. It is
+wrong for a broad, heterogeneous corpus:
 
-    «غير محدد في المصدر»   ("not specified in the source")
+  - a citizen asking «كم الرسوم؟» got six sections, five unasked-for;
+  - source material that did not fit the seven headings was lost at INGEST
+    time, because the ingest step existed to force it into them;
+  - every gap rendered as «غير محدد في المصدر», so a thin service looked
+    like a broken answer rather than a short one.
 
-It is NEVER null, and it is NEVER filled from the model's own knowledge.
+The answer shape now follows the QUESTION, not a schema. What survives here
+is the part that was never about layout:
 
-Both alternatives are worse in ways that are easy to miss:
+  1. provenance comes from the corpus, never from the model
+  2. confidence is a closed vocabulary, and anything unrecognised is "none"
 
-  - null / omitted: the UI silently drops the row, and a citizen reading a
-    checklist with no «الرسوم» line reasonably concludes the service is
-    free. An absent field reads as an answer.
+--- Provenance is still not the model's to invent ------------------------
 
-  - filled from model knowledge: produces an invented fee or an invented
-    document list sitting underneath a real government source URL. The
-    citation makes the fabrication look verified. This is the single worst
-    output this system can produce, and it is what whole-service loading
-    plus this policy exist to prevent.
+A hallucinated citation is worse than no citation, because it survives a
+glance. Source fields are read off the retrieved chunks and overwrite
+whatever the model emitted.
 
-Saying "the source does not specify this" is a true statement, and it tells
-the citizen exactly what to go and check.
+Retrieval can now span several services in one answer — a question about
+two fees legitimately pulls from two files — so sources are a LIST. A
+single-source answer is just the one-element case.
 """
 
-from dataclasses import dataclass
-
-# The literal a missing field renders as. One constant, so the UI, the
-# prompt and the tests cannot drift apart.
-NOT_IN_SOURCE = "غير محدد في المصدر"
-
-# Confidence, per L3. The model reports this about its OWN grounding:
-#   high    — the context answers the question
-#   partial — the context answers some of it
-#   none    — the context does not contain the answer; do not invent one
+# The model reports this about its own grounding:
+#   high    — the retrieved text answers the question
+#   partial — it answers some of it
+#   none    — it does not contain the answer; do not invent one
 CONFIDENCE_VALUES = ("high", "partial", "none")
 
 
-@dataclass(frozen=True)
-class CardField:
-    key: str          # JSON key the model emits
-    label_ar: str     # what the UI shows
-    section_ar: str   # the '##' heading in the corpus that supplies it
-    is_list: bool = False
-
-
-# Field order is reading order: who it is for, what to bring, what to do,
-# what it costs, how long, where. The corpus '##' headings in
-# docs/CORPUS_SPEC.md are these `section_ar` values, which is why using
-# different headings degrades the card.
-CARD_FIELDS = (
-    CardField("eligibility",        "الفئة المستهدفة",   "الفئة المستهدفة"),
-    CardField("required_documents", "المستندات المطلوبة", "المستندات المطلوبة", is_list=True),
-    CardField("steps",              "الخطوات",           "الخطوات", is_list=True),
-    CardField("fees",               "الرسوم",            "الرسوم"),
-    CardField("estimated_time",     "المدة المتوقعة",    "المدة المتوقعة"),
-    CardField("where",              "أين تتم المعاملة",  "أين تتم المعاملة"),
-)
-
-# Filled from chunk metadata, not from the model. These are facts about
-# provenance, and the model is not the authority on where its own context
-# came from.
-METADATA_KEYS = ("service_name", "authority", "source_url", "source_title")
-
-
-def sections_present(chunks):
-    """The set of '##' headings actually available in this context."""
-    return {c.get("section") for c in chunks if c.get("section")}
-
-
-def missing_fields(chunks):
+def normalise_confidence(value):
     """
-    Which card fields have no supporting section in the retrieved context.
-
-    Computed from the CONTEXT, not from the model's output — so it is known
-    before generation runs and can be asserted against afterwards.
+    An unreadable or absent confidence is not evidence of grounding, so it
+    degrades to "none" rather than being ignored.
     """
-    present = sections_present(chunks)
-    return [f.key for f in CARD_FIELDS if f.section_ar not in present]
+    return value if value in CONFIDENCE_VALUES else "none"
+
+
+def _source_of(chunk):
+    """One source entry, as recorded in the corpus at ingest time."""
+    url = (chunk.get("source_url") or "").strip() or None
+    # source_ref is the TEXTUAL fallback, for material with no live URL — a
+    # printed services guide, a PDF page reference. Attribution does not have
+    # to be clickable to be honest, but it does have to be present.
+    ref = (chunk.get("source_ref") or chunk.get("source_title") or "").strip() or None
+    return {
+        "service": chunk.get("service"),
+        "authority": chunk.get("authority"),
+        "url": url,
+        "title": chunk.get("source_title"),
+        "ref": ref,
+    }
+
+
+def sources_from(chunks):
+    """
+    Distinct sources behind an answer, in first-seen (best-match) order.
+
+    Deduplicated so a six-section service is cited once rather than six
+    times, while a genuinely two-service answer keeps both citations.
+    """
+    seen, out = set(), []
+    for chunk in chunks or []:
+        source = _source_of(chunk)
+        key = (source["service"], source["url"], source["ref"])
+        if key in seen or not (source["service"] or source["url"] or source["ref"]):
+            continue
+        seen.add(key)
+        out.append(source)
+    return out
 
 
 def metadata_from(chunks):
     """
-    Provenance, taken from the corpus rather than from the model.
+    The provenance block attached to every answer.
 
-    source_url in particular must never be model-generated: a hallucinated
-    citation is worse than no citation, because it survives a glance.
+    service_name/authority describe the PRIMARY (best-matching) chunk, which
+    is what a heading should say. `sources` carries everything cited.
     """
-    if not chunks:
-        return {k: None for k in METADATA_KEYS}
-    first = chunks[0]
+    sources = sources_from(chunks)
+    primary = sources[0] if sources else {}
     return {
-        "service_name": first.get("service"),
-        "authority": first.get("authority"),
-        "source_url": first.get("source_url"),
-        "source_title": first.get("source_title"),
+        "service_name": primary.get("service"),
+        "authority": primary.get("authority"),
+        "source_url": primary.get("url"),
+        "source_title": primary.get("title"),
+        "sources": sources,
     }
-
-
-def apply_missing_field_policy(card, chunks):
-    """
-    Force every field the context could not support to NOT_IN_SOURCE.
-
-    Applied AFTER generation, deliberately. The prompt also instructs the
-    model to do this, but instructions are not guarantees — a model asked
-    for eight fields will tend to produce eight plausible fields. This makes
-    the policy structural: a field whose section is absent from the context
-    is overwritten regardless of what the model returned, so an invented fee
-    cannot survive even if the model ignores the instruction.
-    """
-    result = dict(card)
-    absent = set(missing_fields(chunks))
-
-    for f in CARD_FIELDS:
-        value = result.get(f.key)
-        if f.key in absent or value in (None, "", [], {}):
-            result[f.key] = NOT_IN_SOURCE
-        elif f.is_list and isinstance(value, list):
-            cleaned = [str(v).strip() for v in value if str(v).strip()]
-            result[f.key] = cleaned or NOT_IN_SOURCE
-
-    result.update(metadata_from(chunks))
-    if result.get("confidence") not in CONFIDENCE_VALUES:
-        # An unparseable or absent confidence is not evidence of grounding.
-        result["confidence"] = "none"
-    return result
-
-
-def empty_card(confidence="none"):
-    """A fully-unsupported card. Used when there is no context at all."""
-    card = {f.key: NOT_IN_SOURCE for f in CARD_FIELDS}
-    card.update({k: None for k in METADATA_KEYS})
-    card["confidence"] = confidence
-    return card

@@ -114,12 +114,12 @@ def build_response(plan, question, history):
             "reason": "no_grounding",
         }
 
-    # Grounded: one LLM call produces the card and its own confidence.
+    # Grounded: one LLM call produces the answer and its own confidence.
     answer = generate_answer(question, list(plan.chunks), history=history)
 
-    # L3: the model reported it cannot answer from this context. Render the
-    # refusal rather than a checklist of «غير محدد في المصدر» rows, which
-    # would look like a broken answer instead of an honest one.
+    # L3: the model reported the retrieved text does not answer this. Render
+    # the refusal — an answer the model itself disowns should not be dressed
+    # up as one, and the refusal names the authority and its portal.
     if answer.get("confidence") == "none":
         return {
             "format": "refusal",

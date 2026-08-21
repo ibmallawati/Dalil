@@ -17,4 +17,11 @@ logs/*
 # Claude Code local session files
 .claude/
 
+# Source PDFs dropped for OCR. The extracted .ocr.txt IS tracked -- that is
+# the reproducible artefact; the binaries are large and often not ours to
+# redistribute.
+data/pdf_inbox/*.pdf
+data/pdf_inbox/*.PDF
+scrape_qanoon_run1
+
 .venv/
