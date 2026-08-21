@@ -1,0 +1,2522 @@
+
+===== PAGE 1 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+Glaize
+Ca) 507,
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+Performance Indicators Manual:
+
+Definitions/Clarifications/Calculations/Examples/Remarks
+
+===== PAGE 2 =====
+Sultanate of Oman 2
+CMA EZ
+
+Ministry of Higher Education
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1°* 2015 to Aug. 31" 2016 Unless indicated otherwise)
+
+Definition / clarification:
+“Class size is the average number of students per class’ (OECD, 2002,
+
+hitps://stats.oecd.org/glossary/detail.asp?ID=5347).
+
+Calculation:
+1. The class size is calculated by dividing the number of students enrolled by the number of
+
+classes.
+2. The total number of students divided by the total number of classes in each semester.
+2. Compute the weighted mean of the average class sizes.
+Remarks:
+1. The definition of class size is applicable to all teaching classes (theoretical, tutorials,
+practical/labs, ...) and have to be included in the calculation.
+. Postgraduate classes are excluded.
+
+3, Example:
+
+Assume institution A (in the Sultanate of Oman) offered three semesters $1, 52 and 53, and each
+
+semester includes different classes (theoretical, tutorials, practical/labs, ...) (C). The total number
+
+of students per class is given by following Table:
+
+===== PAGE 3 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+B16 (SUA
+MAXDEV)
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1** 2015 te Aug. 31° 2016 Unless indicated otherwise)
+
+[No] PIs Definitions / Clarifications/Calculations/Examples/Remarks a
+
+Institution A/ Program P1(Department D1)
+
+SS So [a
+51 {20/30 ]35 [40 [10 [15 [25 ]175 |
+522 |]25 135 [6s [45 [30 [10 [o [210 |
+S315 [30 [30 |]30 [10 [5 fo | 120 |
+| Total | 60 [95 {130 [115 [50 ]30 ]25 [505 |
+
+Institution A/ Program P2 (Department D2)
+
+jer [ea ‏اللارك]‎ [ea [es [es ‏سك‎ Total
+si [20-30 [35 40 10 [1s [2s 175 _|
+52 [35 [40 [6s [0 [30 [10 [0 [170 |
+s3__[35 [30 [30/50 [10 [20 [o [175 |
+Total [80 | 100 [130 [90 [50 [45 [25 [520 |
+
+The averages of the class size of each semester of program 1 are given by:
+
+===== PAGE 4 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+CDAD EY,
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1°* 2015 to Aug. 315 2016 Unless indicated otherwise)
+
+Average (S,|Pl) ={[20+30+35+40+10+15+25]/7}=25,
+
+Average(S,|Pl) ={25+35+65+45+30+1 0/6 =35
+
+Average (S,|PD) ={[15+30+30+30+10+5]/6}=20
+
+Then, the weighted average of program P1 is given by,
+
+Average(Pl) ={ 247) +346)+206)]/19
+
+={[75+210+120 ]/19 }=26578.
+The computation of averages of P2 (Average (S,|P2), Average (S, |P2), Average (S;|P2), and
+
+Average(P2)) of program 2 is derived in a straightforward manner using the same method as in
+
+program P1.
+
+Then , the final average is given by,
+
+Average(A)={[Average(PI)1 9+ Average(P2)1 8/37 =...
+
+2 | Student-Academic » Definition / clarification:
+advisor ratio
+
+===== PAGE 5 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+CAVA ‏رز(‎
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1"' 2015 to Aug. 31" 2016 Unless indicated otherwise)
+
+Academic advising is defined as “a developmental process which assists students in the
+clarification of their life/career goals and in the development of educational plans for the
+realization of these goals. It is a decision-making process which assists students in realizing their
+maximum educational potential through communication and information exchanges with an
+advisor; it is ongoing, multi-faceted, and the responsibility of both student and advisor”
+
+(NACADA, 2014 hitp://www.nacada.ksu.edu/Resources/Clearinghouse/View-
+
+Articles/Definitions-of-academicadvising.aspx)
+
+® Calculation:
+
+1.The total number of students divided by the total number of academic advisors in each semester;
+
+2. Compute the weighted mean of the ratios.
+
+e Example:
+
+Assume institution A (in Oman) offered three programs/departments D1, D2 and D3. The total
+
+number of students in (Si) and the total number of academic Advisor (ACi) are given by following
+Table:
+
+===== PAGE 6 =====
+AMADA)
+
+Sultanate of Oman
+Adinistry of Higher Education
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 15 2015 to Aug. 31% 2016 Unless indicated otherwise)
+
+Institution A
+
+الا ا الات ‎i‏
+‏الح ‎sees aes‏
+‎ACT‏ وح سح مح سك ‎Seas [ST‏
+
+الح ا اح 2[ اسح ال حت
+
+The ratio of each semester is given by,
+
+( (S11+-$21+53 }) 5
+4011+ 4221-1
+
+RSemester 1)=
+
+(S12+522+S32)
+
+RY t 2 =
+RSemester 27-6 AQIAGD
+
+===== PAGE 7 =====
+Sultanate of Oman 616 792
+Ministry of Higher Education CAD) ‏رز(‎
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1** 2015 to Aug. 31% 2016 Unless indicated otherwise)
+
+[No PIs Definitions / Clarifications/Calculations/Examples/Remarks
+
+Then, the weighted average of the college is given by,
+R=[R(semester 1)+R(semester 2)/2=...
+
+e Remarks:
+
+. The number two stands for the number of semesters.
+
+. The common courses will not affect the calculation of the class size of the colleges if the
+students are from the same college.
+
+. For calculating the indicator when the students are coming from different colleges/
+departments, we may propose the following:
+- The common courses between colleges/departments should be considered/counted for the
+college/department from whom the instructors of these courses are assigned,
+
+- In fact, the classes and loads of the common courses are already counted with the classes and
+
+loads of colleges/departments from which the instructors are allocated/ assigned.
+
+- Regarding the sizes of the common courses, they should be counted to the same
+colleges/departments, and furthermore, should be dependent/ applicable only to students who
+
+are under the supervision of the instructors from the college/department;
+
+===== PAGE 8 =====
+Sultanate of Oman GURY
+Ministry of Higher Education GMA) ey,
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1" 2015 to Aug. 31% 2016 Unless indicated otherwise)
+
+- Add the value of (1/4) for each common course to the number of academic staff of the other
+colleges which have students in common courses that are run by the other colleges,
+
+- The number four stands for the maximum number of courses that can be taught by an
+instructor, and
+
+- For calculating the indicator in each department in same college, the above calculation is to
+be followed.
+
+The percentage of ® Definition / clarification:
+students participating in The internships is defined as any “ structured work experience related to a student's major and/or
+internships career goal” (The University of lowa https://uiowa.edw/).
+
+(Commercial and ® Calculation:
+
+Industrial linkages, ...) The total number of students who participated in national/international internships relative to the
+
+total number of graduates (R) (by department/ college).
+e Remarks:
+1.The internships of this indicator include all types of training and not only the industrial training.
+
+2. It definitely depends upon the academic programs and specializations.
+
+===== PAGE 9 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1"* 2015 to Aug. 31" 2016 Unless indicated otherwise)
+
+3. This indicator is proposed for the following reasons:
+
+internships can foster student knowledge and skills;
+can help students to get themselves adapted to the nature of the work, and they
+
+can participate in markets after graduation more easily (see, the Education Strategy (TES),
+Education Counsel, page 64).
+
+it is consistent with recommendation No. 25, page 64 of TES .
+
+it is one of the most important characteristics of the quality of academic programs and the
+institutions.
+
+In order to follow and comply with the above recommendations, this indicator cannot be
+negiected.
+
+The indicators were proposed for several purposes (please, refer to points 1 to 4, page 9,
+Ministry Feedback regarding the notes and indicators).
+
+It is known that the internships are compulsory for some programmes but they are optional for
+
+others.
+
+In order to comply with the recommendations of the Education Strategy (TES), all types of
+
+internships need to be taken into consideration.
+
+Gries
+CNAs) 7)
+
+===== PAGE 10 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+CMAs,
+
+Performance Indicators (PIs) te achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1° 2015 to Aug. 31" 2016 Unless indicated otherwise)
+
+Definitions / Clarifications/Calculations/Examples/Remarks
+
+In fact, in several HEIs in Oman, the number of students participating in optional/ voluntary
+
+internships is significant.
+
+٠ Itcan be calculated for the related programs, i.c. those programs which included internships in
+
+their curriculum and for the whole institutions.
+
+4. Example:
+Assume institution A offered three programs/departments D1, D2 and D3. The total number of
+
+students who participated in national/international internships (Ii) and the total number of graduates
+
+(Gi) are given in the following Table:
+
+Institution A
+
+i ‏وسح‎
+‎LLC
+‎jo
+
+132 G32
+
+_—_
+الت كس كر
+من دن لحت
+لت سر سس
+
+===== PAGE 11 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+CMA) EF,
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1** 2015 to Aug. 31% 2016 Unless indicated otherwise)
+
+. | PB Definitions / Clarifications/Calculations/Examples/Remarks 0
+
+Sum/total | Il Gl 12 G2 13 G3
+(8)
+
+The percentages of students participating in internships for each department are given by:
+
+R(D)=U/G)x100 i=123,
+
+and for the whole college,
+
+R(College) =[(11+12+13) (G1+G2+G3)]x10C
+
+The percentage of e Definitions / clarifications:
+students participating in
+career guidance (future
+
+life) programs/ courses/
+events/workshop occupational choices and to manage their careers” (UNESCO; OECD; Watts, 2013, page 241).
+
+The career guidance (future life) programs/ courses (CGP) are “services intended to assist
+
+individuals, of any age and any point throughout their lives, to make educational, training and
+
+10
+
+===== PAGE 12 =====
+Sultanate of Oman Glace
+Ministry of Higher Education CMAs,
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 12 2015 to Aug. 31° 2016 Unless indicated otherwise)
+
+In addition, “Career guidance is concerned with helping graduates to choose between the full
+range of available opportunities, in relation to their distinctive _ abilities, interests and values
+(Watts, page 242).
+
+® Calculation:
+The total number of students who participated in career guidance (future life) programs/ courses
+
+divided by the total number of graduates (by department/ college).
+
+Example:
+
+Assume institution A offered two academic programs/departments D1 and D2 and several career
+guidance (future life) programs. The total number of students who participated in career guidance
+(future life) programs (Nij, i=1,2,3,4; j=1,2) and to the total number of graduates (Gi) are given in
+the following Table:
+
+Institution A
+
+Pepa
+fear pre Ts Pa [pe rs Te
+Semester |
+
+11
+
+===== PAGE 13 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+امات
+ال ‎CLO‏
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1 2015 to Aug. 315 2016 Unless indicated otherwise)
+
+The averages of students who participated in career guidance (future life) programs for each
+
+department and each semester are given by:
+D11=(N11+N214+N3 0/3,
+D21=(N114-N214-N314N40/4,
+D12=(N12+.N22/2,
+and
+D22=(N*124+-N°224+.N'39/3.
+
+Then, the overall percentage of students participating in career guidance (future life) programs/
+
+courses of the college is given by,
+
+R={[[Ol4+ D1 D/G1+-G1]4[(P2 4+ D2DHG214+-G2]]V2}x100
+
+12
+
+===== PAGE 14 =====
+Sultanate of Oman Olen
+Mining of Higher actin CRY CID,
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1 2015 to Aug. 31** 2016 Unless indicated otherwise)
+
+ions/Examples/Remarks
+Definitions:
+“The graduate is defined as a former student who has successfully completed a prescribed course
+
+of study in a college or university”.
+
+“Graduation rate is defined as the percentage of first-year undergraduate students who complete
+
+their program within 150% of the normal time for the program”
+
+(https://fafsa.ed.gov/help/fotw9 1n.htm)
+
+Remark: The normal time of completing the program (Bachler degree) is 5x (1.5) = 7.5 years
+
+including the foundation year, and 4 x (1.5) = 6 years excluding the foundation year- and so on for
+
+the other degrees.
+
+Calculation: .
+
+Graduation rate (GR) of a 4 year program (excluding the foundation year) is given by,
+
+GR= [(FTE Graduates throughout the academic year)/ (FTE Students entering academic year 6
+years ago (including Fall, Spring, Summer entrants] xX 100
+(http://programs.honolulu.hawaii.edu/intranet/sites/programs.honolulu.hawaii.edu.intranet/files/R
+RC-How-To-Define™20Retention 0.pdf).
+
+13
+
+===== PAGE 15 =====
+Sultanate of Oman ‏امات‎
+‎Ministry of Higher Education BMAD) EV)
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1° 2015 to Aug. 31% 2016 Unless indicated otherwise)
+
+[No] PIs | Definitions / Clarifications/Calculations/Examples/Remarks
+
+© Remarks:
+. 150% or 1.5 are international factors. Institution A (in Oman) can implement its standards of
+
+allowable period of study.
+. The FTE concept is given in indicator 7.
+
+. The indicator for undergraduate studies only.
+e Example:
+
+Assume institution A offered three academic programs/departments D1, D2 and D3 and that this
+institution A offered two degrees ( Bachelor and 2-years Diploma) ineach program/ department.
+The total number of FTE Graduates throughout the academic year and the total number of FTE
+Students entering academic year 5x1.5/(4x1.5/3x1.5) years ago (including Fall, Spring, Summer
+
+entrants) are given in the following Tables:
+
+Institution A
+
+14
+
+===== PAGE 16 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+AMADA,
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1** 2015 to Aug. 31" 2016 Unless indicated otherwise)
+
+Definitions / Clarifications/Calculations/Examples/Remarks
+
+FTE Students entering | 100 50 230
+academic year 5 x1.5
+
+ago
+
+FTE Graduates | 70 40 50 160
+throughout the
+
+academic year
+
+١
+FTE Students entering | 0 100 200 450
+academic year 3 5
+
+aco
+
+FTE Graduates | 100 70 135 305
+throughout the
+
+academic year
+
+GR (Bachelor)= (160/230)x100=0.696,
+
+and
+
+Then,
+
+15
+
+===== PAGE 17 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+CMA Ey,
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1** 2015 to Aug. 315 2016 Unless indicated otherwise)
+
+GR (Diploma )= (305/450)x100=0.678.
+
+Remark: The above calculation can be used for 3-years diploma/ 4-years Bachler graduates except
+the FTE Students entering academic year 3 x 1.5/4x1.5.
+The percentage of Definition / clarification:
+programs accredited by Accredited programs intended for any program accredited by any academic/professional and
+academic/professional national/international bodies.
+
+bodies Calculation:
+
+The total number of programs accredited by academic/professional bodies divided by the total
+
+number of existing programs,
+Student-Instructor ratio Definition / clarification:
+
+A student-teacher ratio (R) is defined by the total number of FTE students divided by _ the total
+number of FTE teaching staff.
+Calculation:
+
+The calculation is based on FTE of students and instructors.
+
+Remarks:
+
+16
+
+===== PAGE 18 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+CAE
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1" 2015 to Aug. 31 2016 Unless indicated otherwise)
+
+. The term Instructors (teaching staff) is intended for any Ph.D./M.Sc./MA holders only.
+
+. FTErepresents both full-time students and part-time students.
+
+. Each full-time student is counted as one FTE (full-time equivalent) student. Or
+
+. An undergraduate student is considered full-time if he/she is taking the minimum teaching
+requirement of credits (maybe 12 or more credit units in several institutions) during a semester.
+
+. Part time students/ students on academic probation are to be counted on the basis of their
+taking hours in relation to FTE students (maybe 12 or more).
+
+. Full-time equivalent (FTE) instructor is considered for this indicator.
+
+. FTE represents both full-time instructors and part-time instructors.
+
+. Each full-time instructor is counted as one FTE and part-time instructors are to be computed on
+
+the basis of their teaching hours (by credit) in relation to FTE teaching capacity (maybe 12 or
+15 credits hours in several institutions).
+
+. Contact hours have to converted to credits hours.
+
+. Using different denominators in computing FTE of part time students and FTE of part time
+instructors, i.e. different standards of institutions (minimum teaching requirement of students
+
+and FTE workload standard of instructors) will give different ratios.
+
+17
+
+===== PAGE 19 =====
+GUM
+CIA
+
+Sultanate of Oman
+Ministry of Higher Education
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1" 2015 to Aug. 31 2016 Unless indicated otherwise)
+
+‎Example:‏ كن
+
+‎Assume institution A has three programs/departments D|. D2 and D3. The following Table
+shows that the total number of full-time students in each department is denoted by Nij, i=1,2,3; |
+
+‎j=1.2. and the total number of full- time academic staff in each department is denoted by AC).
+
+‎Institution A
+
+‎In Semesterl: Assume this institution has 10 part-time students taking 6 credits hours, 20 part-time
+students taking 3 credits hours, 3 part-time instructors taking 8 credits hours and 2 instructors taking
+4 credits hours.
+
+‎In Semester2: Assume this institution has 20 part-time students taking 6 credits hours, 30 part-time
+students taking 4 credits hours. 4 part-time instructors taking 8 credits hours and 5 instructors taking
+
+‎6 hours credits.
+
+‎| Calculations:
+
+‎18
+
+===== PAGE 20 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+CMAM EY,
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1** 2015 to Aug. 31°* 2016 Unless indicated otherwise)
+
+[No] Ps Definitions / Clarifications/Calculations/Examples/Remarks |
+
+FTE1 student (Semester1) = N11+N21+N31+10 x (6/12)+20 x (3/12) =...,
+FTE] instructor (Semester]) =AC11+AC21+AC31+ 3 x (8/12)42 x (4/12) =...,
+FTE2 student (Semester2) = N12+N22+N32+20 x (6/12)+ 30 x (4/12) =...,
+FTE2 instructor (Semester2) =AC12+AC22+AC32+ 4 x (8/12)+5 x(6/12) = .
+Then, the Student-Instructor Ratio are given by:
+R1= (FTEI student /FTEI instructor) = ...,
+R2= (FTE2 student /FTE2 instructor) =...,
+and
+1-
+Or
+R =[(N11+N21+N31+10 x (6/12)+20 x (3/12) N12+N22+N32
+
++20 x (6/12)+30 x (4/12)]/[ ACLI+AC21+AC31+ 3 x (8/12)
+
++2 x(4/12)+AC12+AC22+AC32+ 4 x (8/12)+5 x(6/12)] =.
+
+Remarks
+
+11: The Common Courses
+
+19
+
+===== PAGE 21 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+Ne SIA
+AMAR YZ
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1 2015 to Aug. 31** 2016 Unless indicated otherwise)
+
+The common courses will not affect the calculation of the class size of the colleges if the
+
+students are from the same college.
+
+٠ For calculating the indicator when the students are coming from different colleges/
+
+departments, we may propose the following:
+
+- The common courses between colleges/departments should be considered/counted for the
+
+college/department from whom the instructors of these courses are assigned,
+
+- In fact, the classes and loads of the common courses are already counted with the classes and
+
+loads of colleges/departments from which the instructors are allocated/ assigned. Regarding
+
+the sizes of the common courses, they should be counted to the same colleges/departments and
+
+have to depend on/ be applicable only to students who are under the supervision of the
+
+instructors from the college/department;
+
+- Add the value of (1/4) for each common course to the number of academic staff of the other
+
+colleges which have students in common courses that are run by the other colleges, and
+
+- The number four stands for the maximum number of courses that can be taught by an instructor.
+
+e For calculating the indicator in each department in same college, the above calculation is to
+be followed.
+
+20
+
+===== PAGE 22 =====
++. oo 0
+Sultanate of Oman WZ era
+Ministry of Higher Education CMAM EY)
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1 2015 to Aug. 31% 2016 Unless indicated otherwise)
+
+[No] PIs Definitions / Clarifications/Calculations/Examples/Remarks
+‏ا‎ :1 SS... ee — 8 eee em
+
+The percentage of
+academic staff Ph.D.
+holders
+
+‎Calculation:‏ ل
+
+‎The total number of academic staff Ph.D. holders divided by the total number of academic staff.
+
+‎e Remarks:
+1.11 may be possible to find several academic staff who are teaching in different programs but the
+
+‎repetition of academic staff in more than one program should not be allowed in computing this
+indicator.
+
+‎2.It may be possible to calculate the indicator by including/excluding GFP.
+
+‎The percentage of e Calculation;
+
+‎Professors and The total number of Professors and Associate Professors divided by the total number of
+
+‎academic staff.
+
+‎Associate Professors in
+
+‎relation to total
+
+‎academic staff
+
+‎Academic staff turnover |e Calculation:
+(attrition) rate
+
+‎Total number of academic staff that leaves an institution during a year relative to the total number of
+
+‎academic staff during the same year (by college).
+
+‎Research Ratio e Definition / clarification:
+
+‎21
+
+===== PAGE 23 =====
+Sultanate of Oman ‏لالتعا‎
+‎Ministry of Higher Education CLA) 6,7,
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1*t 2015 to Aug. 31 2016 Unless indicated otherwise)
+
+“Research is the process through which new knowledge is acquired”.
+
+In addition, the term Research Ratio is intended for the published research papers per academic
+
+» Remarks:
+1.The total number of published research papers in a year relative to the total number of academic
+staff during the same year (department/ college).
+
+2.The research papers must be published in internationality recognized academic, peer reviewed
+
+journals (Scopus Sources List & WEB of Science) either in hard copy or in both, i.e. hard and
+
+electronic copies (evidence to be supplied)( https://home.irc.gov.om/tabid/1014/language/en-
+US/Default.aspx).
+
+Institution A
+
+22
+
+===== PAGE 24 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+CMAPS,
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1" 2015 to Aug. 31 2016 Unless indicated otherwise)
+
+On Electronics,
+Information and
+Systems. J. of
+electrical and
+electronic
+engineering(IOSR)
+, 2015, Vol., No. pp.
+On Reliability of
+Weibull Model,
+JRS, 2015, Vol.,
+No.,pp.
+
+Techniques.
+IJDATS, 2015, Vol.,
+No.,pp.
+
+On EFQM Model.
+IJIDS, 2015, Vol.,
+No.,pp.
+
+The Quality of
+Institutions. IJQI,
+2015, Vol., No.,pp.
+
+23
+
+Remark: the
+definition is
+not
+applicable
+(point 2
+above)
+
+===== PAGE 25 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+AMADA,
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1** 2015 to Aug. 31° 2016 Unless indicated otherwise)
+
+|No.} PIs a ‘Definitions / Clarifications/Calculations/Examples/Remarks a |
+
+12 | The total number of
+patents/ awards/prizes
+
+won for research work
+
+4/10
+
+Remarks:
+
+. The number ten stands for the total number of academic staff.
+
+. The example is necessary and was given to illustrate the indicator and to show how to apply
+
+the definition. In this example, we assumed there to be three department/programs in an
+institution, ten academic staff, and, that there are five published papers authored by the
+department’s staff and, for the purposes of PI analysis, these papers are considered as
+
+collective academic staff output and departmental output.
+
+. The calculation is consistent with the definition. In addition, the final result of the calculation
+
+is the ratio of applicable published papers divided by the total number of academic staff, and
+
+. Inthis example the total number of academic staff is assumed to be 10, which is equal to 8
+
+(are given in the Table of PI11)+ 2 (who have not published any papers).
+
+e Calculation:
+
+Total number
+« Remarks:
+
+24
+
+===== PAGE 26 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+ةمات
+‎CAD) EY,‏
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1° 2015 to Aug. 31" 2016 Unless indicated otherwise)
+
+(for students and . Joint awards/patents naturally reflect joint and cooperative work between researchers/
+academic staff institutions. These then have to be divided for cooperating authors/institutions.
+. Ifa patent or an award is given to X number of persons, all of whom are affiliated to the
+institution A, then, the institution will receive 1 credit.
+. Ifa patent or an award is given to 3 persons, two of whom are affiliated to the institution A,
+then institution A will receive (2/3) credits.
+
+. The patents should be approved by national bodies.
+
+Total number of active Calculation:
+
+research contracts with Total number
+
+the Research Council
+
+and other bodies
+
+The total number of © Definition / clarification:
+
+cooperative research The research engagement is intended to the research engagements per academic staff.
+
+engagement (share) in Research engagements per academic staff is defined by the total number of shares (outside of the
+
+relation to total authors institution) in joint published research papers divided by the total number of authors (by college).
+
+25
+
+===== PAGE 27 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+CANAD) ED7)
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1 2015 to Aug. 31% 2016 Unless indicated otherwise)
+
+a Definitions Clariicatfons/Calculatons/ExamplevRemarks—————|
+
+e Remarks:
+
+1.The research paper is defined in 11.
+
+2. It is very clear that the definition of this indicator is intended to be for the shares in research per
+the academic staff.
+
+3. In order to apply the definition accurately, the share/research engagement has to be divided
+
+between authors and should be computed in relation to the academic staff.
+
+e Examples:
+
+Example 1: If a paper is published by X number of authors. all of whom are affiliated to the
+institution A, then, the institution A will receive 0 share (credit).
+Example 2: If a paper is published by 3 authors, two of whom are NOT affiliated to the institution
+
+A, then institution A will receive: (2/3) share (credit) for joint paper/research engagement.
+
+Example 3: Assume the following publications of HEI A
+
+26
+
+===== PAGE 28 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+CMA,
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1** 2015 to Aug. 31° 2016 Unless indicated otherwise)
+
+Definitions / Clarifications/Calculations/Examples/Remarks
+
+Math. | On Reliability of
+Weibull Model, HEI:X
+
+On Shrinkage Dr. B
+1112475, 2015, Vol., /DrD  |HELH |
+PreK [BELA
+
+Manag. | On EFQM Model.
+VIDS, 2015, Vol.,
+No., pp.
+
+27
+
+===== PAGE 29 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+CM ADEN,
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1*t 2015 to Aug. 31% 2016 Unless indicated otherwise)
+
+The Quality of HELS
+Institutions. IJQI, HEI:R
+2015, Vol., No., pp. HEI:T
+
+The total number of research engagement (share)
+
+Remarks:
+4. The total number of academic staff is included implicitly in example 3 since the sole paper, any
+papers without engagement and unpublished paper have zero shares.
+
+15 | The amount of external {e Calculation:
+
+income (from research) The total amount of external income (from research) divided by the total amount of the budget.
+
+in relation to total
+
+budget
+
+The percentage ofthe |e Calculation:
+
+allocated research funds The amount of allocated research funds divided by the total amount of the budget.
+from the total budget
+
+28
+
+===== PAGE 30 =====
+Sultanate of Oman Glace
+Ministry of Higher Education CMAN,
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1% 2015 to Aug. 31" 2016 Unless indicated otherwise)
+
+17 | The percentage of Calculation:
+funded research The total number of funded research projects/ papers in a year relative to the total number of
+projects/ papers from projects/ papers.
+the institution in
+relation to total
+projects/ papers
+18 | Ratio of citations Definition/ clarification:
+The term Ratio of Citations is intended to apply to the citations per academic staff (Average
+
+number of citations per author).
+
+It is well-known that the term ‘citation’ is used to measure the relative importance of authors and
+papers published in scientific journals.
+
+This indicator refers to the average of citations of published papers relative to academic staff.
+Calculation:
+
+1.The total citations of published papers in the period of Sep. 15 2015 to Aug. 315 2016 divided
+by the total number of academic staff.
+
+29
+
+===== PAGE 31 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+CDAD EY,
+
+Performance Indicators (PIs) te achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1° 2015 to Aug. 31% 2016 Unless indicated otherwise)
+
+2.The average number of citations per author is calculated by first dividing the number of citations
+for each publication by the number of authors for that publication. Subsequently the resulting
+
+citations are added up.
+
+Remarks:
+
+. The research paper is defined in 11 (point 2).
+
+. It may be worth mentioning that several documents show that the “definitions and indicators of
+
+citation are different, and not unified; and it seems to be that the meaning of citation in several
+
+indicators are at best incomplete and shallow research”. This means that one should be very careful
+in dealing with such complex indicators and perform only those with accurate results and which
+can reflect real interpretation to the research/researcher
+
+. In general, “the tools (based on citation data) used to rank journals, papers, researches are often
+misunderstood and misused”.
+
+. Some of the famous indicators are: H-Index, G-Index, M-Index, Prop, 10-Index, ...but they are not
+
+easy to compute by institutions and some of them require data which are not available to us.
+
+30
+
+===== PAGE 32 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+Glee
+CLAD) SY,
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1** 2015 te Aug. 31 2016 Unless indicated otherwise)
+
+. The simplest indicator is the Ratio of Citations, or in other words “the average number of
+research citations per full time academic staff” (please, refer to ROSQA/ OAAA, page 92, line
+5).
+
+6. This means that the above indicator (PI18) is coupled/connected/related to the number of academic
+
+staff.
+
+. The citations should be related to the academic year of that data/papers,
+
+8. Then, it has to be calculated taking into account the total number of academic staff and not the
+
+cited academic staff (who have published paper(s) and are cited).
+
+The citations may be based on the Google Scholar Citation.
+
+Examples:
+
+Example 1: If a paper is published by X number of authors which are affiliated to the institution
+
+A, and the paper is cited C number of times, then, the institution A will receive all the citations,
+
+and each author will receive (C/X) credit.
+
+31
+
+===== PAGE 33 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+CADE,
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1** 2015 to Aug. 31" 2016 Unless indicated otherwise)
+
+Definitions / Clarifications/Calculations/Examples/Remarks
+
+Example 2: Ifa paper is published by four authors, two of whom are affiliated to the institution A,
+
+and assuming that this article is cited eight times, then institution A will receive: (2/4) ratio for
+joint paper/research engagement, and 8 x (2/4) = 4 credits for the indicator named Ratio of
+
+Citations received. In addition, each author will get 2 credits,
+
+Example 3: Assume the following citations of publications of HEI A
+
+Titles/papers (published | Authors | Affiliation | Total of | Ratio
+= =
+Aug. 31st 2016
+Classification of {F | HEIA 010 2.5
+Performance and Quality ‏ع8‎ SEL
+Indicators
+2 | Classification of oa 10
+Performance and Quality [HELA
+
+0
+
+Institution A
+
+32
+
+===== PAGE 34 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+سات )مات
+‎COMA V7)‏
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1° 2015 to Aug. 31" 2016 Unless indicated otherwise)
+
+Definitions / Clarifications/Calculations/Examples/Remarks )
+
+On shrunken estimators HEI A
+
+for exponential scale | 7
+
+parameter Ae
+
+4 |Goals and objectives:
+techniques and measures
+for performance
+improvement of HEIs in
+
+Oman
+
+Remarks:
+1١ The total number of academic staff is included implicitly in example 3 above.
+
+2. Thus, the proposed calculations of this indicator are consistent with the above definition/
+
+clarification.
+
+19 | The percentage of Calculation:
+
+academic staff with The total number of academic staff with PhDs from international HEIs divided by the total
+
+PhDs from international
+HEIs
+
+number of academic staff.
+
+Remark: International HEIs stand for the top 500 world universities in any world university
+
+rankings (for discussion).
+
+33
+
+===== PAGE 35 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+CAM EY,
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1" 2015 to Aug. 31** 2016 Unless indicated otherwise)
+
+[Nof Ps "Definitions / Clarifications/Calculations/Examples/Remarks 7
+
+The number /percentage |e Calculation:
+
+of nationalities of The total number and percentage of academic staff of any nationality.
+
+academic staff
+
+The percentage of Definition / clarification:
+
+academic staff with “The term international professional experience is concerned with a variety of professional
+international programs (training/learning/ teaching/...) intended to help academic staff improve their
+professional experience professional knowledge, competence, skill, and effectiveness” which are gained by academic staff
+
+from any institution/ organization from outside of Oman before joining this institution.
+
+The following are some of the common international professional experience topics for academic
+staff:
+
+furthering education and knowledge; training or mentoring in specialized teaching techniques;
+
+earning certifications in a particular educational approach or program;
+e working in any professional institution/organization before joining this institution;
+
+e participating in any sabbatical leave; ...etc.
+
+34
+
+===== PAGE 36 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+CDAD,
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1** 2015 to Aug. 31** 2016 Unless indicated otherwise)
+
+Calculation:
+The total number of academic staff with international professional experience relative to the total
+number of academic staff.
+Remark: The experiences of academic staff gained by their higher studies (Ph.D./MPhil/MSc.) are
+not included.
+percentage Calculation:
+
+students participating in The total number of students participating in international exchange programs (in/out) divided by
+
+international the total number of students.
+
+collaborative/exchange
+
+programs (in/out)
+
+The percentage of Definition / clarification:
+
+students in affiliated The affiliated institution “is an educational institution that operates independently, but also has a
+
+programs formal collaborative agreement with another, usually larger institution that may have some level
+of control or influence over its academic policies, standards or programs”. Moreover, the degrees
+of students are issued from both HEIs.
+Calculation:
+
+35
+
+===== PAGE 37 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+0
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1*"* 2015 to Aug. 31" 2016 Unless indicated otherwise)
+
+ratio of | ٠ Definition /clarification:
+international joint- The ratio of international joint-research publications is intended for the international authored/co-
+research publications authored papers. The indicator shows the share of publications with foreign authorship/co-
+authorship in the total number of publications of the institutions.
+٠ Calculation:
+The total number of international joint-research publications divided by the total number of
+publications.
+e Remarks:
+1.١ International Joint-research Publications means published joint papers of any academic staff
+
+affiliated in this institution with international author(s)/coauthor(s) (Please note that the
+
+concept of "international author(s)/coauthor(s) " in the context of this indicator means a person
+
+with any citizenship of a country affiliated to any institution in the world but not in Oman.
+. The definition of this indicator is intended to be for the international shares, i.e. with
+international authors/institutions in a published research in relation to authors of
+
+papers/academic staff.
+
+36
+
+===== PAGE 38 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+CADE,
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1** 2015 to Aug. 31°* 2016 Unless indicated otherwise)
+
+. In order to study/show the engagement and cooperation with international authors and to
+
+distinguish between the different levels of engagement and cooperation, the number of shares
+
+in each paper with international authors has to be taken into consideration and to be computed.
+
+4. The research paper is defined in 11.
+
+5. The international J. is defined in 11 (point 2).
+
+٠ Example
+
+Assume HEI A has two department and its academic staff have published four papers as per the
+
+following Table:
+
+Institution A
+
+On Reliability of
+
+hare
+
+HEI: A(Oman) 2
+HEI:X (Oman)
+HEIL: Y(India)
+
+Affiliations
+
+Weibull Model,
+
+37
+
+===== PAGE 39 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+CAD)
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1** 2015 to Aug. 31" 2016 Unless indicated otherwise)
+
+sDefinitions / tions / Clarifications/Caleulations/Examples/Remarks
+
+JRS, 2015, Vol., | Dr. E HEI: Z(Germany)
+No.,pp.
+
+On Shrinkage | Dr.B | HEI: ‏تاقلط‎ A(@man) |
+Techniques. te ——
+DATS, 2015,/Dr.D ١ HEI:H (India)
+
+Loam
+Manag. | On EFQM Model ‏هم‎ K | HELA(Oman)
+HEI:A(Oman)
+The Quality of HET:A (Oman)
+Institutions Dr. N
+
+HEI:R (Ireland)
+a HEI:T (Algeria)
+HEI: W (Sudan)
+
+The ratio of international joint-research publications (9/17)
+
+38
+
+===== PAGE 40 =====
+Sultanate of Oman ‏لت مات‎
+Ministry of Higher Education CMA EY,
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1*t 2015 to Aug. 31°* 2016 Unless indicated otherwise)
+
+Definitions / Clarifications/Calculations/Examples/Remarks ١
+
+Remarks:
+. The number 17 stands for the total number of academic staff/authors.
+. At the same time and as the example shows, the indicator should be counted in relation to the
+number of shares and to the total number of academic staff.
+. In fact, the calculation is aligned with the above clarifications. Moreover, the total number of
+academic staff is included implicitly in the above example since the sole paper and any papers
+
+without international authors, and unpublished papers, have zero shares.
+
+The total number of |e Calculation:
+international activities Total number
+
+(int. Remarks:
+
+conferences/workshops) 1. The conferences/workshops which are organized outside Oman are international.
+
+organized by the 2. In order to consider the international activities (int. conferences/workshops) of institutions
+institution which are organized in Oman, the attendees are required to be from Oman but with some others
+
+affiliated to institutions outside of Oman.
+
+39
+
+===== PAGE 41 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+CLA) ‏رارز‎
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1 2015 to Aug. 31 2016 Unless indicated otherwise)
+
+The total number of
+academic staff
+participating in
+international
+professional
+associations in relation
+to the total number of
+
+academic staff.
+
+The total number of
+academic staff
+participating in editorial
+committees of
+international journals in
+relation to the total
+number of academic
+staff.
+
+Definitions / Clarifications/Calculations/Examples/Remarks
+
+e Definition / clarification:
+
+Professional associations is “A body of persons engaged in the same profession, formed usually to
+control entry into the profession, maintain standards, and represent the profession in discussions
+
+with other bodies” (Collins English Dictionary).
+
+Calculation:
+The total number of academic staff participating in international professional associations divided
+
+by total number of academic staff.
+
+Calculation:
+
+The total number of academic staff participating in in editorial committees of international journals
+
+divided by total number of academic staff.
+Remark:
+
+In order to account for the participation in editorial committees of journals, the definition of
+
+“recognized journal” is applicable (see 11).
+
+40
+
+===== PAGE 42 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+CIDADE,
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1* 2015 to Aug. 31 2016 Unless indicated otherwise)
+
+The total number of
+academic staff who
+participated in
+international
+conferences/ workshops
+in relation to the total
+number of academic
+
+staff.
+
+Definition / clarification:
+
+The term “ international conferences” is intended to be applicable to any organized scientific or
+academic meeting of people affiliated to local institutions with other people affiliated to any other
+institutions in the world but outside of Oman, who confer about a scientific or academic topic.
+Calculation:
+
+The total number of academic staff participating in international conferences/ workshops divided
+by total number of academic staff.
+
+Remark:
+
+. In order to account for the participations in international conferences/ workshops for the
+
+institutions, submitting paper(s) by academic staff to these events is required.
+Example:
+
+Assume the following participants in international conferences/ workshops from HEI A.
+
+Institution A
+
+41
+
+===== PAGE 43 =====
+Sultanate of Oman
+Ministry of. Higher Education
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+
+(The data should cover the period from Sep. 1** 2015 to Aug. 31%' 2016 Unless indicated otherwise)
+
+42
+
+Development of
+Academic advising
+in Applied Colleges
+
+of Sciences
+
+The Sth International
+
+Conference of
+
+Quality Assurance
+
+Global Conference
+on Communication
+
+Technology, TEEE.
+
+Oct. 152015,
+Sohar, Oman.
+Remark: the
+definition is not
+applicable.
+Jun 5" 2015,
+Dubai, UAE.
+Remark: The
+date does not
+belong to the
+data period.
+Nov. 4%
+2015,New
+Delhi, India
+
+Gries
+CDAD
+
+===== PAGE 44 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+CLADE,
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1** 2015 to Aug. 31% 2016 Unless indicated otherwise)
+
+Definitions / Clarifications/Calculations/Examples/Remarks
+
+Dr. T HEI A Nanotechnology for March 8" 2016,
+Bioenergy Chicago, USA
+U.S.A.
+
+The total number
+
+The ratio of academic staff who participated in international conferences/ workshops =(2/the total
+number of academic staff).
+29 | The percentage of Definition / clarification:
+international students The term “international students” is intended for any foreign students in Oman.
+
+Calculation:
+
+The total number of international students divided by the total number of students (by department
+
+/college).
+
+The amount of income from consultancies divided by the total amount of the budget.
+
+43
+
+===== PAGE 45 =====
+Sultanate of Oman ‏لشت :هانق‎
+Ministry of Higher Education CANA)
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1% 2015 to Aug. 31 2016 Unless indicated otherwise)
+
+‎Definitions / Clarifications/Calculations/Examples/Remarks‏ 0 الاسم
+
+‎The total number of e Definition / clarification:
+active contracts/projects | This indicator is intended to account for any approved contract/project which provided any service,
+with private sector training, research, ...from the institutions to the private sector.
+
+‎٠» Calculation:
+
+‎Total number
+The total number of » Definition / clarification:
+activities/short training The term “life-long learning” (continuing education} is intended to apply to those
+life-long courses programs/courses which offer people the opportunity to bring up to date their knowledge of
+directed to the activities which they had either previously laid aside or always wanted to try but were unable to
+community do so; or, to work at extending their intellectual horizons by seeking to understand and master
+
+‎some of the recent cognitive advances, that have transformed their worlds (Aspin, 2001).
+
+‎“Skills and competences developed through programs of lifelong learning are vital for workers’
+
+‎performance in their tackling of precise job responsibilities and to determine how well they can
+
+‎adapt their general and particular knowledge and competences to new tasks” (ibid).
+
+‎e Calculation:
+
+‎44
+
+===== PAGE 46 =====
+eo
+AMADA,
+
+Sultanate of Oman
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1° 2015 to Aug. 31%* 2016 Unless indicated otherwise)
+
+Total number
+33 | The total number of Definition / clarification:
+participants in life-long The term of life-long learning (continuing education) is defined in 32.
+learning (continuing Calculation:
+education) courses Total number
+Remark: The participants in these programs come from the community.
+Employment Rate of Calculation:
+graduates (program/ _ The total number of graduates in each department/college/education levels (Diploma/Bachelor)
+
+institution) who are employed within I-12 months of graduation relative to the total number of graduates (by
+
+gender).
+The total number of - Definition / clarification:
+participations in The terms of local/regional job fairs/competitions are intended to apply to the activities of any
+local/regional job local/regional job fairs and any competitions between institutions or between students
+fairs/competitions locally/regionally.
+
+Calculation:
+
+Total number
+
+45
+
+===== PAGE 47 =====
+Sultanate of Oman ‏لشت مات‎
+Ministry of Higher Education COMA) EY,
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+(The data should cover the period from Sep. 1** 2015 to Aug. 31 2016 Unless indicated otherwise)
+
+Remarks:
+1, The participants may be students, academic or non-academic staff.
+
+2. The participants are not necessarily winners of medals/prizes.
+
+36 | The percentage of e Calculation:
+Omani academic staff |. The total number of Omani academic staff divided by the total number of academic staff.
+
+The percentage of Calculation:
+
+Omani non-academic/ The total number of Omani non-academic staff divided by the total number of non-academic staff.
+
+administrative staff ~
+
+Appendix
+
+46
+
+===== PAGE 48 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+CNN) ‏را‎
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+The data should cover the «1* 2015: to Aug. 31% 2016. Unless indicated otherwise
+
+period from Ser
+2015/2016
+
+Average class size
+
+Student-Academic advisor ratio |
+
+The percentage of students participating in internships (Commercial and Industrial linkages, ...)
+
+Graduation rate (batch) |
+
+|
+
+Academic staff turnover (attrition) rate fd
+pReseachRatio O™—OCOC“COCSC‘“C(N’NNNNSNNS
+The total number of patents/ awards/prizes won for research work (for students and academic sta SY
+| Total number of active research contracts with the Research Council andotherbodies |]
+| The total number of research engagement (share) inrelationiototalauthors 2]
+| The amount of external income (from research) inrelationtototalbudget 0000] 000
+| The percentage of allocated research fund fromthe total ‏4ناط‎ © 22
+The percentage of funded research projects/ papers from the institution in relation to total projects/ papers |
+|Ratioofcitations —“CSOSOTCCSNSC“‘(SNSCC#*Sd
+| The percentage of academic staff with Ph.D. from intemational 8115 2 |
+| The number /percentage of nationalities ofacademic staff ‏ا‎
+‎PS
+
+|
+
+|
+
+|
+
+ا
+
+—
+
+]~~ برا يماهدم]ا هرا هفدافت ]ا رم
+‎pa] ploy bo‏
+
+Bop] eye
+C/O) oo;~I
+
+The percentage of academic staff with international professional experience
+The percentage of students participating in international collaborative/exchange programs (in/out)
+
+The percentage of students in affiliated programs )
+The ratio of international joint-research publications
+
+The total number of international activities (int. conferences/workshops) org
+
+hao
+
+NIM] NT bo
+‏حل‎ a
+
+anized by the institution
+
+47
+
+===== PAGE 49 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+Glace
+CLI ‏زرف‎
+
+Performance Indicators (PIs) to achieve the Quality and Performance of HEIs
+‘he data should cover the period from Sep. 1* 2015 to Aug. 31" 2016. Unless indicated otherwise)
+
+— 0
+
+The total number of academic staff participating in international professional associations in relation to the total
+number of academic staff
+
+The total number of academic staff participating in editorial committees of international journals in relation to
+the total number of academic staff
+
+27 | The total number of academic staff who participated in international conferences/ workshops in relation to the
+total number of academic staff
+
+The percentage of international students
+The ratio of income from consultancies
+
+The total number of active contracts/projects with private sector
+
+The percentage of Omani academic staff ©
+The percentage of Omani non-academic/ administrative staff
+
+Pe
+| ‏اا‎
+‎|
+‎|
+‎P|
+‎Po
+‎Total number of active research contracts with the Research Council and other bodies fo
+
+48
+
+===== PAGE 50 =====
+Sultanate of Oman ‏اط ودام‎
+Ministry of Higher Education CLAW,
+
+Average class size
+
+University: College:
+
+size
+Class size The total Class size The total Class size | The total
+classes classes classes
+
+| | College 117171717171710
+
+49
+
+===== PAGE 51 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+Glace
+AMAD EY
+
+Table 2
+
+_ Student-Academic advisor ratio
+
+University: College:
+
+50
+
+===== PAGE 52 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+Glee
+AMADA,
+
+Table 3
+
+The percentage of students participating in internships (Commercial and Industrial linkages, ...
+
+University: College:
+Programs/Departments Internships Programs Date The name and place of training | Funded bodies The total percentage
+linkages number of
+students
+
+| pe PS See
+‏شا‎ Pe | ‏لعل‎
+‏ال سس ال و‎ |
+QQ ‏لاسر‎
+‏الا 999239 اللا ال ال‎
+‏الا ال ا‎
+‏لسسع الحو‎ ee ‏ال‎
+‎ee ‏الاح‎
+‏الا ال ل‎
+‏اا سا‎
+‏ااا ا‎
+‏ااا لئسا‎
+OO
+‏سر الج سر سوسس سوسس‎ 9393:53:31
+‏السك الاك ال ساسسس سس ممه‎
+ee ‏ااا‎
+‎a ‏ااا‎
+‏سس 239220250 1س لوج سس لمم للح ممه‎
+‏سس ال الا سس سح سس ووم‎
+DO CO ‏اللاسسسس‎
+
+51
+
+===== PAGE 53 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+CME,
+
+Table 4
+
+The percentage of students participating in career guidance (future life) programs/ courses/workshops/events/
+
+University: College:
+|| SeeErtments | programa’ ‏الس اش م الس ا لاسي‎
+Departments programs/ courses/ workshops/events/ students
+
+‎OO‏ الس سجس
+سسسسسسسسسسسسسا
+الل ال ل ال ]0
+ا ال ال ال 0
+ااا سسا
+سسا
+3303 سس سوج سس ‎QP‏
+‏تجح ل ل ْم 5253535 لمم 5ك لكك ‎nn‏
+‎GO (OO‏ لسسسسسسسسسبا
+‎nn GOOG‏
+ا ال الااا#سسسس الس ‎nnn‏
+‏ل سسا
+ال لام سس سوج السك ال مسمس
+‎fT‏
+‏سس لسسع سجر ‎I‏ سس
+ا
+الالموططوُووساسسسسسس لس ووسسسسسسسر لج 555 للكلااااا ‎ee‏
+‎GOO‏ امسو الك لاسر
+اا ‎PO‏
+‏ال ال ال الاق الل
+
+‏ال ال ال ال الا ال | ‎[Ss‏
+
+‎] 6 | College ١ | ‏ا‎
+
+‎52
+
+===== PAGE 54 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+Table 5
+
+Graduation rate
+
+University: College:
+
+The total FTE Percentages | Overall
+number of | Percentages
+pradustes |
+
+Programs/Departments , Degrees
+
+Bachelor
+Diploma Gyears | ‏ااا‎
+‎Diploma @years
+Bachelor
+
+Diploma (3years)
+Diploma (2years
+Bachelor
+
+Diploma (3years
+Diploma (2years
+Bachelor
+
+Diploma (3years
+Diploma (2years
+Bachelor
+
+Diploma (3years
+Diploma (2years
+
+53
+
+Glace
+AMAD EY
+
+===== PAGE 55 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+Table 6
+
+The percentage of programs accredited by academic/professional bodies
+
+University: College:
+
+Bachelor Ss
+Diploma Gyears) |
+[Diploma Qyears) | ——+
+"Bachelor | ‏كك‎
+‎Diploma Gyears) |
+__
+>
+‏لا‎
+‏ا‎
+
+The names of the
+accredited programs
+
+Programs/Departments
+
+!
+
+[Bachelor |
+
+[Diploma (Syears) | [|
+
+[Diploma (2years) | |
+Ls
+
+Bachelor 7
+
+| Diploma ) (2years) . [| ears) . Pe
+
+Colleges .
+
+54
+
+رار انوا
+
+===== PAGE 56 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+Table 7
+
+Student-Instructor ratio
+
+University: College:
+a Programs/Departments | The total number | The total number of
+of FTE students FTE academic staff
+
+سس سس الس ال ال
+اسم سس ال ال الدع
+سس ال سس الس ال لد
+‎ee‏ ——————————
+| لما
+
+سككس 3373م اللا اله
+137303 سككس سس الل ال للم
+ا ال ال ‎a‏ الل
+الك سس ال سوسس سس 1
+لقلا
+اا لطملا
+سس سس للا لجس الم
+سسا
+الس الل لوو لم
+ال ساس سس لم
+ا ال ااا ‎ee‏
+‎Colleges |‏ |_|
+
+55
+
+Res
+CN) EV},
+
+===== PAGE 57 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+Table 8-9-10-19
+
+The percentage of academic staff Ph.D. holders (PAC) ,
+
+The percentage of Professors and Associate Professors in relation to total academic staff (PPAP
+
+Academic staff turnover (attrition) rate (ACT) and
+
+The percentage of academic staff with Ph.D. from international HEIs (PACI
+
+University: College:
+
+Ranks/titles The PPAP | PA
+Prof. Prof. number
+
+‎[|F [M |[F | [M{F [M |#” |[M |F [M[F |‏ 1
+1 ال ‎OO‏ 51 55 1ق 251 ‎SG‏ 501 32201 11ت امسق اسك ل ‎Es‏
+‏2
+‏9 ا 10 ال ‎OQ CO CO OO OO‏ ا ل 1 ل ل ‎FE‏
+‏ا 99 ا ا ال الس 51 31 12-1 از الاك اللا9999 السستائا ل ل ل 11 الا
+ا ل ل ‎CO‏ ل ل لل ل ل طلكا
+‎jo | OO‏
+اا ا ا ال الم ‎7p ee‏
+ا ا 90 ال ال الم لس الك ل ا الاك الا الا لا ‎es a‏
+‎oof Od‏
+اا ‎poe‏
+‏353535311 الت ا ا اك ا 1551 ا ل ‎Po‏
+‏ا ال ال الك لس الس ل 1 الكل ل الا الا ‎QO‏ 1 ل لاا
+ايا ]| ‎CG‏ ل.ء. ‎College ss‏
+
+‎616 (S707
+CAs,
+
+‎AC
+‎|
+‎|
+‎|
+‏ا‎
+‏ا‎
+‎|
+‎[|
+‎|
+‎|
+‎|
+‏ما‎
+‎|_|
+
+‎“Evidence regarding the name of the Institution that gave the degree and the name of the university rankings to be supplied.
+
+‎56
+
+===== PAGE 58 =====
+Sultanate of Oman ‏لذ‎ C16 (SIOZ
+Ministry of Higher Education CMA) EY,
+
+- 7
+
+Table 11 Research Ratio
+
+University: College:
+
+peer reviewed journals (Scopus
+Sources List & WEB of Science).
+
+57
+
+===== PAGE 59 =====
+Sultanate of Oman ‏لمات . لذ‎
+Ministry of Higher Education CMA Ey
+
++ يو
+
+Table 11 Research Ratio
+
+The total number of applicable published papers = .
+
+Then, the overall Ratio =....
+
+58
+
+===== PAGE 60 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+Table 12 a
+
+The total number of patents/ awards/prizes won for research work (academic staff)
+
+University: College:
+The name of Department Date of joining The Body that gave the | Year of Winning the The proof of
+academic staff the above HEI Patent/ Prizes /Award Patent/ Prizes /Award | patents (from
+National Bodies
+EE a Se CG
+A Re GO ‏اا‎
+‎A Ce GO
+‏اط كا‎
+‏قا‎ GO
+‏اا سكا‎
+‏ا الو7سسسسسسسس اللا الس سس الح وج سا الح وو اه‎
+‏ال اللا ساس اللا ال ال ال ل‎
+‏ال ال ال ل ل الا‎
+‏ال سس سس الس السو سس مسحو وسسسسر الح سس لل‎
+‏اط سا‎
+(ee ‏ال لس ساس الل الا سس الس‎
+‏ال ا ل ا‎
+‏اطبا‎
+‏ااا اطبا‎
+‏اطبا‎
+‏اطبا‎
+‏اطبا‎
+‏ال ال ل‎ 11
+
+58
+
+Glau
+CAME,
+
+===== PAGE 61 =====
+Sultanate of Oman AY"
+Ministry of Higher Education aN
+
+CLADE,
+
+Table 12 b
+The total number of patents/ awards/prizes won for research work (Students)
+
+University: College:
+
+The name of Department Date of joining Year of Winning the The proof of
+Student the above HEI Patent/ Prizes ‘Award Patent/ Prizes ‘Award | patents (from
+National Bodies
+
+2[
+قا
+لكا
+لكا
+
+لكا
+لقا
+لل
+
+كم
+
+tn] | bo
+
+59
+
+===== PAGE 62 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+Gress
+CQMAD 7
+
+Tabie 13 Total number of active research contracts with the Research Council and other bodies (Public)
+
+University: College:
+
+| roject Researchers
+
+60
+
+===== PAGE 63 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+Table 14-17-18-24; The total number of cooperative research engagement (share) in relation to total authors
+
+The percentage of funded research projects/ papers from the institution in relation to total projects/ papers
+
+Ratio of citations and The ratio of international joint-research publications
+University: College:
+
+Program/ The sequence of the | Amount of The total number | The ratio of Total of
+Department paper (from Table | fund by O.R. of research international joint- | Citations (from
+engagement research
+
+Sep. to Aug.
+publications 7 2)
+
+62
+
+7 Ole . ‏سل‎
+‎CAME,
+
+===== PAGE 64 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+ol
+AMA,
+
+Table 15-16-30 The amount of external income (from research) in relation to total budget , The percentage of allocated
+
+research fund from the total budget and The ratio of income from consultancies
+
+College: University:
+
+Programs/ The name of The amount of The amount of The amount of
+Departments Commercial and external income | allocated research | income from
+
+Industrial 8 fund from the consultancies
+organizations
+
+Ratios
+
+63
+
+===== PAGE 65 =====
+Sultanate of Oman Glace
+Ministry of Higher Education ‏ورا لواف‎
+
+Table 20: The number /percentage of nationalities of academic staff
+
+University: College:
+
+Program/department Program/department Program/department Program/department Program/department
+ionaliti T ‏لل ا ل‎ TP
+‏اللي‎
+
+[| Nationalities | 1 | 2 | Nationalities |T |
+ee
+
+‎Se ee‏ سا
+
+‏ا اه ‎=D dO:‏ اجا
+مح م سدع حر اح جح سس اس حك 4
+ا اتام حر الس للح ا ا امك ماك
+اه ال ال ‎SO‏ ار جات امك الك لات
+ال جر ساس ال اجر ‎ne‏ ال
+
+‎Where T stands for the total and 2 stands for the percentage.
+
+‎64
+
+===== PAGE 66 =====
+Sultanate of Oman We ‏مانت عات‎
+Ministry of Higher Education Joe CDNA) ‏رار‎
+
+Table 21:
+
+The percentage of academic staff with international professional experience
+
+University: College:
+
+The name of academic Program/ Date of joining Date (from-to) and place of international professional Total
+staff member Department the above HEI experience
+
+Percentage = ...
+
+65
+
+===== PAGE 67 =====
+Sultanate of Oman iv ‏شما‎
+‎Ministry of Higher Education ANA) uy
+
+o ~
+
+Table 22-23 The percentage of students participating in international collaborative/exchange programs (in/out) and
+
+The percentage of students in affiliated programs
+
+University: College:
+Programs/departments | Affiliated The total number Percentages International The total number In/out
+programs
+‏ا سيا‎
+‏ااا‎
+‏ال الا ال الس لوو اح‎
+‏ااا‎
+‎a ‏الس الا3 اللا الل‎
+‏لكك ا اللا للم ال ل‎
+‏ا سسا‎
+‏الك ا112 الا الا ال ال‎
+‏ااا سسا‎
+OG ‏سس‎ س7١‎ 1-1-0
+|
+es ‏اا‎
+‎a ‏ا‎
+‎a ‏لاك الا الا اللا ال‎
+‏لسك ال اللا ال ل ل‎
+CO OO
+‏اا سيا‎
+‏اا لما‎
+CO ‏لسك‎
+‏ال‎ CO ‏ككس‎
+‏ل‎ CO ‏لسك‎
+‏ال‎ CO ‏لسك‎
+‏ااا‎
+
+66
+
+===== PAGE 68 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+GAIAM EY,
+
+Table 24
+
+The total number of academic staff participating in international professional associations in relation to the total number of
+academic staff and 1
+The total number of academic staff participating in editorial committees of international journals in relation to the total
+number of academic staff
+
+University: College:
+
+Date of joining The name of the Date of The name of the editorial/ | Date of
+
+the above HEI international membership | co- editorial committees in | membership
+professional international journals*
+associations
+
+* The international journal is defined in research ratio.
+
+68
+
+===== PAGE 69 =====
+Sultanate of Oman 3 laces
+Ministry of Higher Education CLAD) EV),
+
+Table 25-26
+
+The total number of academic staff participating in international professional associations in relation to the total number of
+academic staff and
+The total number of_academic staff participating in editorial committees of international journals in relation to the total
+number of academic staff
+
+University: College:
+
+Date of joining The name of the Date of The name of the editorial/ | Date of
+
+the above HEI international membership | co- editorial committees in | membership
+professional international journals”
+associations
+
+* The international journal is defined in research ratio.
+
+68
+
+===== PAGE 70 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+CMB sy
+
+Table 26(28
+
+The total number of academic staff who participated in international conferences/ workshops in relation to the total number of
+academic staff
+
+University: College:
+
+Date and place of the Total
+international conferences/ Funds
+
+Percentage = ...
+
+69
+
+===== PAGE 71 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+Table 27(29)
+
+The total number of international students
+
+University: College:
+
+Department/ Nationality The Percentage
+7 program total
+number
+‏ا سيا‎
+‏اا ا‎
+‏ااا‎
+‏ااا سسا‎
+‏سس لكك الامو سه‎
+2 ‏الس كك الوك‎
+ee ‏الس السك‎
+‏لاسا ال الوا ااا‎
+pT
+a ‏الس اللا‎
+3 ‏ااا سسا‎
+| 0 |
+
+الا سسا
+ااا سسا
+السك اك لوو
+اط كا
+ا لطا
+ط كا
+9 ال الوا ‎a‏
+‎es es ee‏
+:5ك 11 الا ‎a‏
+‏1117 الا الا ‎a‏
+‏الا ال اللا ل ا
+
+70
+
+CAA) V7,
+
+===== PAGE 72 =====
+Sultanate of Oman ‏مات‎ (SI
+Ministry of Higher Education ANMADIED,
+
+Table 27 The total number of active contracts projects with private sector
+University: College:
+
+Project team /
+Researchers
+
+00
+
+ERE ١ ١ ١
+
+هك 0
+
+71
+
+===== PAGE 73 =====
+Sultanate of Oman Vy O16 (S07
+Ministry of Higher Education ; CMA,
+
+4 ~*~
+
+Table 28(31) The total number of active contracts projects with private sector
+University: College:
+
+Project team / Affiliation Title of Projects Date Funding Bodies Amount by
+Researchers O.R.
+‏ال السو لك‎
+‏شتا‎
+‎Fa ‏ااا‎
+‏اا سكا‎
+‏الك‎ ee ‏اسح‎
+‎a
+‏المح الح سس سس لك‎
+‏الوح سر 2222222 الاك‎
+‏ال سس اللو الاك‎
+‏للح الح سس الك‎
+‏الل السو سس لح ل‎
+Fe ee
+a
+pa f
+a ‏سر ادوج‎ 113135353
+‏وسح اح لح م كل نل‎
+‏الح لح سس ل‎
+‏اللا الح سح سس ال‎
+‏ممح للم‎
+a ‏اا‎
+‏الا الا الا اد‎
+‏ااا سسا‎
+‏امسا‎
+‏سا‎
+‏ال اللا الا‎
+
+71
+
+===== PAGE 74 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+CMADIEY,
+
+Table 29(32-33)
+
+The total number of activities/short training life-long courses directed 10 the community and
+
+The total number of participants in life-long learning (continuin education) courses
+
+University: College:
+
+Program/ activities/ The total number of | Place
+short training life-long participants in life-
+courses long
+
+72
+
+===== PAGE 75 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+Table 30(34)
+Employment Rate of graduates (program/ institution)
+University: College:
+Programs/Departments Degrees The total number of employed Percentages
+graduates
+
+[Bachelor CS
+
+Diploma (3years pO
+
+Diploma(2years) | ‏اا‎
+
+[Bachelor TCs
+
+[Diploma @years) [Cd
+
+[Diploma(2years) [Cd
+
+3 [Bachelor |
+
+[DiplomaG@yearsy [Cd
+
+1111 الا ا ‎Diploma‏
+
+[Bachelor [CS
+
+|DiplomaGyears) [Cd
+
+|Diploma(2yearsy [Ci
+
+[Bachelor |
+
+|Diploma(3yearsy [| ‏ا‎
+
+Diploma (2years pT
+‏ال ال ل لاف‎
+11 ‏ال ال ل ااا‎
+‏ال ال ل ل‎
+
+73
+
+CME,
+
+===== PAGE 76 =====
+Sultanate of Oman
+Ministry of Higher Education
+
+CMAN,
+
+Table 31(35)
+
+The total number of participations in local/regional job fairs/competitions
+
+University: College:
+
+The name of Date and place | The total number of The total number of The total number of
+
+local/regional job participants participants (non- participants
+
+fairs/competitions (academic staff) academic staff} (students/programs/
+١
+
+74
