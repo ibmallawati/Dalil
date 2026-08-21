@@ -158,6 +158,57 @@ def test_the_limit_is_server_side_not_client_side(client):
     assert second["format"] == "answer"
 
 
+# --- Follow-up questions -------------------------------------------------
+
+def test_a_follow_up_is_answered_from_the_previous_service(client, monkeypatch):
+    """
+    The wiring test. The router only sees history if app.py passes it, and
+    the symptom of forgetting to is not an error — it is a clarification
+    about an unrelated service, one turn after a correct answer.
+
+    Runs against the REAL corpus: «وكم رسومها؟» carries no service words at
+    all, so anything it grounds in came from the previous turn.
+    """
+    seen = {}
+
+    def capture(question, chunks, history=None, model=None):
+        seen["services"] = {c.get("service_id") for c in chunks}
+        return {"format": "answer", "answer": "خمسة ريالات",
+                "confidence": "high", "_served_by": "m"}
+
+    monkeypatch.setattr(app_module, "generate_answer", capture)
+    data = client.post("/chat", json={"history": [
+        {"role": "user", "content": "كيف أجدد جواز سفري؟"},
+        {"role": "assistant", "content": "..."},
+        {"role": "user", "content": "وكم رسومها؟"},
+    ]}).get_json()
+
+    assert data["format"] == "answer"
+    assert "rop-passport-renewal" in seen["services"]
+
+
+def test_the_current_question_is_not_double_classified(client, monkeypatch):
+    """
+    app.py passes history[:-1]; the last entry IS the current question and
+    is passed separately. Sending the whole list would have the router
+    classify the same text twice — harmless here, but it would make a
+    first-ever question look like a follow-up to itself.
+    """
+    captured = {}
+
+    def spy_plan(question, *, service_id=None, allow_clarify=True, history=None):
+        captured["question"] = question
+        captured["history"] = history
+        from chatbot.agent.router import plan_and_gather as real
+        return real(question, service_id=service_id,
+                    allow_clarify=allow_clarify, history=history)
+
+    monkeypatch.setattr(app_module, "plan_and_gather", spy_plan)
+    ask(client, "كيف أجدد جواز سفري؟")
+    assert captured["question"] == "كيف أجدد جواز سفري؟"
+    assert captured["history"] == []
+
+
 # --- Failover visibility -------------------------------------------------
 
 def test_response_reports_which_model_answered(client):

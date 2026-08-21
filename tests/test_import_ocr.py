@@ -165,8 +165,30 @@ def test_authority_matching_survives_ocr_spelling_variants():
         assert imp.match_authority(raw)[0] == "moi"
 
 
-def test_an_unknown_authority_is_not_guessed():
-    assert imp.match_authority("وزارة الفضاء") is None
+def test_an_unlisted_authority_gets_a_derived_identity():
+    """
+    Rejecting these used to mean a PDF for any ministry nobody had hand-
+    listed produced nothing at all — every service dropped for a reason
+    that had nothing to do with the service.
+
+    The identity is derived and the authority is auto-registered on the way
+    out, loudly. See chatbot.rag.registry_sync.
+    """
+    auth_id, name_ar, name_en = imp.match_authority("وزارة الفضاء - سلطنة عُمان")
+    assert name_ar == "وزارة الفضاء"        # country suffix stripped
+    assert auth_id and auth_id.isascii()
+    assert name_en                          # transliterated placeholder
+
+
+def test_a_derived_id_cannot_collide_with_a_listed_one():
+    listed = {identity[0] for identity in imp.AUTHORITIES.values()}
+    assert imp.match_authority("وزارة الفضاء")[0] not in listed
+
+
+def test_an_unrecognisable_heading_is_still_rejected():
+    """OCR debris must not become a government body in the registry."""
+    assert imp.match_authority("ا ال ال ال م") is None
+    assert imp.match_authority("الرسوم") is None
 
 
 # --- The gate -------------------------------------------------------------
@@ -209,9 +231,14 @@ def test_a_contact_form_is_not_a_citizen_transaction():
     assert ok is False and "citizen transaction" in reason
 
 
-def test_a_service_under_an_unknown_authority_is_rejected():
-    ok, reason = imp.assess(_service(authority_raw="وزارة الفضاء"))
-    assert ok is False and "unknown authority" in reason
+def test_a_service_under_an_unlisted_authority_is_imported():
+    """It is registered on the way out rather than dropped."""
+    assert imp.assess(_service(authority_raw="وزارة الفضاء"))[0] is True
+
+
+def test_a_service_under_unreadable_debris_is_rejected():
+    ok, reason = imp.assess(_service(authority_raw="ا ال ال ال م"))
+    assert ok is False and "not a recognisable authority" in reason
 
 
 # --- Emission -------------------------------------------------------------

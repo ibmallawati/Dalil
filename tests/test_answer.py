@@ -156,11 +156,11 @@ def test_the_primary_source_follows_the_selection(monkeypatch):
 
 
 @pytest.mark.parametrize("used", [None, [], "1,2", ["x"], [99], 3])
-def test_an_unusable_selection_cites_everything(monkeypatch, used):
+def test_an_unusable_selection_falls_back_to_tracing(monkeypatch, used):
     """
-    Over-citing is a flaw; dropping the citation an answer rests on is a
-    missing attribution, which is worse. Every malformed shape a model can
-    emit here degrades to the safe direction.
+    Every malformed shape a model can emit degrades to text tracing rather
+    than to an exception. Both chunks here are quoted by the answer, so both
+    are correctly recovered.
     """
     fake_chat(monkeypatch, json.dumps({**GOOD, "used": used}, ensure_ascii=False))
     chunks = [
@@ -168,6 +168,104 @@ def test_an_unusable_selection_cites_everything(monkeypatch, used):
         chunk(service="تجديد رخصة السياقة", url="https://www.rop.gov.om/licence"),
     ]
     assert len(generate_answer("سؤال", chunks)["sources"]) == 2
+
+
+def test_a_missing_used_list_does_not_cite_unrelated_services(monkeypatch):
+    """
+    The regression this fallback exists for. Models omit `used` — observed
+    on 2 of 4 turns in one live conversation, always the short answers — and
+    "cite everything" then listed eight ministries under a one-line fee,
+    «التقارير والمؤشرات الاقتصادية» among them, beneath an answer about
+    passport documents.
+
+    A citation beside a government fee is a claim about where that fee came
+    from. Eight unrelated ministries is a false claim, not a generous one.
+    """
+    fake_chat(monkeypatch, json.dumps(
+        {"answer": "رسوم تجديد الجواز عشرون ريالاً عمانياً.",
+         "confidence": "high"}, ensure_ascii=False))       # no "used" at all
+    chunks = [
+        chunk(service="التقارير والمؤشرات الاقتصادية", text="بيانات اقتصادية",
+              url="https://moec.example/x"),
+        chunk(service="طلب أرض سكنية", text="تخصيص قطعة أرض سكنية",
+              url="https://mohup.example/x"),
+        chunk(service="تجديد جواز السفر", text="عشرون ريالاً عمانياً",
+              url="https://www.rop.gov.om/passport"),
+    ]
+    sources = generate_answer("كم الرسوم؟", chunks)["sources"]
+    assert [s["service"] for s in sources] == ["تجديد جواز السفر"]
+
+
+def test_an_untraceable_answer_cites_the_top_hit_only(monkeypatch, caplog):
+    """
+    Nothing reported and nothing quoted. The best-matching passage is the
+    honest single guess; listing the rest would invent agreement between
+    sources that were never consulted.
+    """
+    fake_chat(monkeypatch, json.dumps(
+        {"answer": "لا تتوفر تفاصيل كافية.", "confidence": "partial"},
+        ensure_ascii=False))
+    chunks = [
+        chunk(service="أ", text="نص مختلف تماماً", url="https://a.gov.om"),
+        chunk(service="ب", text="نص آخر مختلف", url="https://b.gov.om"),
+    ]
+    with caplog.at_level("WARNING"):
+        sources = generate_answer("سؤال", chunks)["sources"]
+    assert [s["service"] for s in sources] == ["أ"]
+    assert "answer_citations_unresolved" in caplog.text
+
+
+def test_an_overlong_used_list_is_cut_down_by_tracing(monkeypatch):
+    """
+    The self-report fails in BOTH directions. On a re-run of the same
+    conversation the model listed nearly every passage it had read, putting
+    «التقارير والمؤشرات الاقتصادية» under an answer about passport fees.
+
+    Where the model claims a passage the text does not support, the text
+    wins — it is evidence rather than a report.
+    """
+    fake_chat(monkeypatch, json.dumps(
+        {"answer": "رسوم تجديد الجواز عشرون ريالاً عمانياً.",
+         "confidence": "high", "used": [1, 2, 3]}, ensure_ascii=False))
+    chunks = [
+        chunk(service="التقارير والمؤشرات الاقتصادية", text="بيانات اقتصادية",
+              url="https://moec.example/x"),
+        chunk(service="طلب أرض سكنية", text="تخصيص قطعة أرض سكنية",
+              url="https://mohup.example/x"),
+        chunk(service="تجديد جواز السفر", text="عشرون ريالاً عمانياً",
+              url="https://www.rop.gov.om/passport"),
+    ]
+    sources = generate_answer("كم الرسوم؟", chunks)["sources"]
+    assert [s["service"] for s in sources] == ["تجديد جواز السفر"]
+
+
+def test_a_paraphrased_answer_still_cites_what_the_model_reported(monkeypatch):
+    """
+    Tracing needs verbatim overlap, and not every answer has it. When the
+    text proves nothing, the self-report is the only signal left and is
+    better than guessing at the top hit.
+    """
+    fake_chat(monkeypatch, json.dumps(
+        {"answer": "الرسوم بسيطة نسبياً.", "confidence": "partial", "used": [2]},
+        ensure_ascii=False))
+    chunks = [
+        chunk(service="أ", text="نص غير مقتبس", url="https://a.gov.om"),
+        chunk(service="ب", text="نص آخر غير مقتبس", url="https://b.gov.om"),
+    ]
+    assert [s["service"] for s in generate_answer("س", chunks)["sources"]] == ["ب"]
+
+
+def test_tracing_needs_a_real_run_of_words_not_one_shared_token(monkeypatch):
+    """
+    «الرسوم» appears in half the corpus. Matching on a single common word
+    would trace an answer to every service that mentions fees, which is the
+    over-citation this replaced.
+    """
+    from chatbot.agent.answer import traced_chunks
+
+    answer = "رسوم تجديد الجواز عشرون ريالاً عمانياً."
+    assert traced_chunks([chunk(text="الرسوم تختلف حسب نوع المركبة")], answer) == []
+    assert len(traced_chunks([chunk(text="عشرون ريالاً عمانياً")], answer)) == 1
 
 
 def test_string_indices_are_accepted(monkeypatch):

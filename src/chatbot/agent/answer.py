@@ -144,11 +144,13 @@ confidence:
   "partial" تجيب عن جزء منه فقط
   "none"    لا تحتوي على إجابة السؤال
 
-used:
+used — حقل إلزامي، لا تُغفله أبداً:
   كل نص مرفق مسبوق برقم بين قوسين مثل [3].
   اذكر أرقام النصوص التي استعملتها في الإجابة فقط.
   لا تذكر رقم نص قرأته ولم تستفد منه — الأرقام تُستخدم لعرض المصادر
   أسفل الإجابة، وذكر مصدر لم يُستعمل يوحي بأنه سند لمعلومة ليست منه.
+  حتى لو استعملت نصاً واحداً، اكتب "used": [رقمه]. إغفال هذا الحقل
+  يجعل الإجابة تُنسب إلى مصادر لا علاقة لها بها.
 
 تنسيق مسموح داخل answer: سطر يبدأ بـ - لعنصر قائمة، أو 1. لخطوة مرقّمة،
 و**نص** للتأكيد. لا تستخدم أي تنسيق آخر."""
@@ -180,16 +182,48 @@ def build_context(chunks):
     return "\n\n".join(blocks)
 
 
-def used_chunks(chunks, used):
-    """
-    Narrow `chunks` to the passages the model reported drawing on.
+_SHINGLE = 5
 
-    Anything unusable — missing, not a list, non-numeric, every index out of
-    range — returns all of them. Over-citing is a flaw; dropping a citation
-    the answer genuinely rests on is a missing attribution, which is worse.
+
+def _words(text):
+    return re.sub(r"[^\w\s]", " ", text or "", flags=re.UNICODE).split()
+
+
+def traced_chunks(chunks, answer):
     """
+    Which passages the answer demonstrably came from, by text overlap.
+
+    The fallback for a model that omits `used`. It does omit it — observed
+    on 2 of 4 turns in one conversation, always on the short answers — and
+    the previous fallback of "cite everything" then put eight services under
+    a one-line fee, including «التقارير والمؤشرات الاقتصادية» beneath an
+    answer about passport documents.
+
+    Overlap works here because the prompt already requires fees, documents
+    and durations to be copied verbatim, so a used passage and the answer
+    share long runs of words. A five-word run is far past coincidence in
+    Arabic prose; shorter passages are matched whole.
+    """
+    haystack = " ".join(_words(answer))
+    if not haystack:
+        return []
+    traced = []
+    for chunk in chunks:
+        words = _words(chunk.get("text", ""))
+        if not words:
+            continue
+        size = min(_SHINGLE, len(words))
+        shingles = (" ".join(words[i:i + size])
+                    for i in range(len(words) - size + 1))
+        if any(shingle in haystack for shingle in shingles):
+            traced.append(chunk)
+    return traced
+
+
+def _reported(chunks, used):
+    """The model's own `used` list, resolved to chunks."""
     if not isinstance(used, (list, tuple)):
-        return chunks
+        return []
     picked = []
     for value in used:
         try:
@@ -198,7 +232,55 @@ def used_chunks(chunks, used):
             continue
         if 0 <= index < len(chunks) and chunks[index] not in picked:
             picked.append(chunks[index])
-    return picked or chunks
+    return picked
+
+
+def used_chunks(chunks, used, answer=""):
+    """
+    Narrow `chunks` to the passages the answer actually rests on.
+
+    Two independent signals, because neither alone is trustworthy. Measured
+    across one four-turn conversation, the model's self-report was wrong in
+    BOTH directions on the same prompt:
+
+      - omitted entirely on two turns;
+      - on a re-run of the same turns, listing nearly every passage it had
+        read, which put «التقارير والمؤشرات الاقتصادية» under an answer
+        about passport documents.
+
+    Text tracing is objective evidence and the prompt already requires fees,
+    documents and durations to be copied verbatim — precisely the facts a
+    citation has to back. So where both signals exist, their INTERSECTION
+    is cited: the model claims it, and the text proves it.
+
+    The order of the fallbacks is a claim about which evidence is stronger,
+    and tracing outranks the self-report. What is never returned is every
+    retrieved chunk: a citation beside a government fee says that fee came
+    from there, and eight ministries under one fee is a false claim, not a
+    generous one.
+    """
+    reported = _reported(chunks, used)
+    traced = traced_chunks(chunks, answer)
+
+    both = [c for c in traced if c in reported]
+    if both:
+        return both
+    if traced:
+        logger.info("answer_citations_traced", extra={
+            "hint": "cited by text overlap; model's 'used' disagreed or was absent",
+            "traced": len(traced), "reported": len(reported),
+            "retrieved": len(chunks)})
+        return traced
+    if reported:
+        return reported
+
+    # Nothing reported and nothing traceable. The best-matching passage is
+    # the honest single guess; listing the rest would invent agreement
+    # between sources that were never consulted.
+    logger.warning("answer_citations_unresolved",
+                   extra={"hint": "no 'used', no text overlap; citing top hit",
+                          "retrieved": len(chunks)})
+    return chunks[:1]
 
 
 def parse_answer(text):
@@ -301,7 +383,8 @@ def generate_answer(question, chunks, history=None, model=None):
                               "served_by": usage.get("served_by")})
         return {**_fallback(raw, chunks), "_served_by": usage.get("served_by")}
 
-    cited = used_chunks(chunks, parsed.get("used"))
+    answer_text = str(parsed.get("answer", "")).strip()
+    cited = used_chunks(chunks, parsed.get("used"), answer_text)
     if len(cited) < len(chunks):
         logger.info("answer_narrowed_citations", extra={
             "retrieved": len(chunks), "cited": len(cited),
@@ -311,7 +394,7 @@ def generate_answer(question, chunks, history=None, model=None):
 
     return {
         "format": "answer",
-        "answer": str(parsed.get("answer", "")).strip() or NO_CONTEXT_REPLY,
+        "answer": answer_text or NO_CONTEXT_REPLY,
         "confidence": normalise_confidence(parsed.get("confidence")),
         # Attached AFTER the model, overwriting anything it invented. The
         # model chose WHICH of these passages to cite; it never supplied the

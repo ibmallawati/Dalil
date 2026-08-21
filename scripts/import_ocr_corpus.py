@@ -204,13 +204,48 @@ def normalise_name(text):
     return re.sub(r"\s+", " ", text).strip()
 
 
+# «وزارة العمل - سلطنة عُمان» / «وزارة الداخلية ‏ سلطنة عُمان». The country
+# is not part of the authority's name, and it is where the OCR damage sits
+# («غُمان» in 6 of 17 headings).
+_COUNTRY_SUFFIX = re.compile(r"\s*[-–—‏]\s*(سلطنة|سلطنه)\s+\S+\s*$")
+
+
 def match_authority(raw):
-    """Resolve an OCR'd authority heading to (id, name_ar, name_en)."""
+    """
+    Resolve an OCR'd authority heading to (id, name_ar, name_en).
+
+    A known authority is read from the table above, so the canonical Arabic
+    reaches the front matter instead of «سلطنة غُمان».
+
+    An UNKNOWN one is no longer rejected. It used to be, which meant a PDF
+    for a ministry nobody had hand-listed here produced nothing at all —
+    every one of its services silently dropped for a reason that had nothing
+    to do with the service. Now its identity is derived mechanically and it
+    is registered on the way out, loudly. See chatbot.rag.registry_sync.
+
+    Returns None only when the heading does not read like an authority at
+    all, which is how OCR debris is kept out of the registry.
+    """
     folded = normalise_name(raw)
     for key, identity in AUTHORITIES.items():
         if folded.startswith(key):
             return identity
-    return None
+
+    from chatbot.rag.registry_sync import (generate_id,
+                                           looks_like_an_authority,
+                                           transliterate)
+
+    name_ar = _COUNTRY_SUFFIX.sub("", (raw or "").strip()).strip()
+    if not looks_like_an_authority(name_ar):
+        return None
+
+    # No English name exists in an Arabic PDF, so it is transliterated and
+    # flagged for replacement rather than guessed at.
+    name_en = transliterate(name_ar).title()
+    return generate_id("", name_ar, set(AUTHORITIES_IDS)), name_ar, name_en
+
+
+AUTHORITIES_IDS = {identity[0] for identity in AUTHORITIES.values()}
 
 
 # --- Cleaning -------------------------------------------------------------
@@ -407,8 +442,11 @@ def assess(service, curated=None):
     if existing:
         return False, f"already curated by hand as {existing}"
 
+    # Only rejects headings that do not READ like an authority — an unknown
+    # but well-formed ministry is imported and auto-registered instead.
     if match_authority(service["authority_raw"]) is None:
-        return False, f"unknown authority: {service['authority_raw']!r}"
+        return False, (f"not a recognisable authority heading: "
+                       f"{service['authority_raw']!r}")
 
     for term in EXCLUDE:
         if term in service["name"]:
@@ -454,105 +492,24 @@ def render(service, service_id, doc_title):
     return "\n".join(lines).rstrip() + "\n"
 
 
-# portal_url appears in D6 refusals, so it has to resolve. Ministry domains
-# where they are known to exist; gov.om (the unified portal) otherwise —
-# the precedent mohup already set.
-NEW_AUTHORITIES = {
-    "moe": ("https://www.moe.gov.om",
-            ["وزارة التربية والتعليم", "وزارة التربية", "التربية والتعليم",
-             "المدرسة", "المدارس الحكومية", "ministry of education"]),
-    "mol": ("https://www.mol.gov.om",
-            ["وزارة العمل", "العمل", "تصريح عمل", "الباحثين عن عمل",
-             "ministry of labour"]),
-    "mtcit": ("https://www.mtcit.gov.om",
-              ["وزارة النقل والاتصالات وتقنية المعلومات", "وزارة النقل",
-               "النقل والاتصالات", "وزارة الاتصالات", "mtcit"]),
-    "mafwr": ("https://www.maf.gov.om",
-              ["وزارة الثروة الزراعية والسمكية وموارد المياه", "وزارة الزراعة",
-               "الثروة الزراعية", "الثروة السمكية", "الصيد"]),
-    "moj": ("https://www.moj.gov.om",
-            ["وزارة العدل والشؤون القانونية", "وزارة العدل", "العدل",
-             "الشؤون القانونية", "التوثيق", "ministry of justice"]),
-    "mi": ("https://www.gov.om",
-           ["وزارة الإعلام", "الإعلام", "ministry of information"]),
-    "moec": ("https://www.gov.om",
-             ["وزارة الاقتصاد", "الاقتصاد", "ministry of economy"]),
-    "mcsy": ("https://www.gov.om",
-             ["وزارة الثقافة والرياضة والشباب", "وزارة الثقافة",
-              "الثقافة والرياضة", "وزارة الرياضة", "الشباب"]),
-    "mod": ("https://www.mod.gov.om",
-            ["وزارة الدفاع", "الدفاع", "ministry of defence"]),
-    "mofa": ("https://www.fm.gov.om",
-             ["وزارة الخارجية", "الخارجية", "ministry of foreign affairs"]),
-}
-
-
 def update_registry(accepted, path=REGISTRY):
     """
-    Register the imported services, reading only what was actually written.
+    Declare what was just written, so it can actually be reached.
 
-    Kept in THIS script rather than a companion one. It started as a
-    separate migration that re-derived the ids from the OCR, and the two
-    copies drifted the moment the duplicate check landed — the migration
-    still numbered sequentially while the importer had moved to document
-    numbering, so the registry named service_ids that did not exist. Every
-    one of those services would have refused while sitting fully indexed.
+    Delegates to chatbot.rag.registry_sync, which reads the corpus
+    DIRECTORY rather than this script's accepted-list. That indirection is
+    deliberate. This function used to re-derive ids from the OCR itself,
+    and the two copies drifted within the week: the importer moved to
+    document-based numbering and this did not, so the registry named
+    service_ids that no longer existed and every one of those services
+    refused while sitting fully indexed.
 
-    Registration is not cosmetic. L1 refuses an uncovered authority BEFORE
-    retrieval runs, so a service under an unregistered authority is
-    unreachable no matter how well it indexed.
+    Reading the written files means there is one source of truth, and a
+    hand-written markdown file dropped into the corpus registers on exactly
+    the same path.
     """
-    registry = json.loads(path.read_text(encoding="utf-8"))
-    by_authority = {}
-    for service, service_id in accepted:
-        auth_id, name_ar, name_en = match_authority(service["authority_raw"])
-        by_authority.setdefault(auth_id, (name_ar, name_en, []))[2].append({
-            "service_id": service_id,
-            "name_ar": service["name"],
-            # The service's own name is the only variant that can be
-            # generated honestly. The phrasings that make L1 good
-            # («رخصتي منتهية») are human work, and inventing them
-            # mechanically would be guessing at how citizens speak.
-            "variants": [service["name"]],
-        })
-
-    existing = {a["id"] for a in registry["covered"]}
-    added = []
-    for auth_id, (name_ar, name_en, services) in sorted(by_authority.items()):
-        if auth_id not in existing:
-            if auth_id not in NEW_AUTHORITIES:
-                print(f"  !! {auth_id} has services but no registry template; "
-                      f"add it to NEW_AUTHORITIES")
-                continue
-            portal, variants = NEW_AUTHORITIES[auth_id]
-            registry["covered"].append({
-                "id": auth_id, "name_ar": name_ar, "name_en": name_en,
-                "portal_url": portal, "variants": variants, "services": [],
-            })
-            added.append(auth_id)
-
-    for authority in registry["covered"]:
-        incoming = by_authority.get(authority["id"], (None, None, []))[2]
-        known = {s["service_id"] for s in authority["services"]}
-        authority["services"].extend(
-            s for s in incoming if s["service_id"] not in known)
-
-    # An authority in BOTH lists would let the uncovered check fire on a
-    # name the corpus now covers: an instant refusal for a question Daleel
-    # can answer, and invisible unless something asserts it.
-    promoted = {a["name_ar"] for a in registry["covered"]}
-    before = len(registry["not_covered"])
-    registry["not_covered"] = [a for a in registry["not_covered"]
-                               if a["name_ar"] not in promoted]
-
-    path.write_text(json.dumps(registry, ensure_ascii=False, indent=2) + "\n",
-                    encoding="utf-8")
-    return {
-        "added": added,
-        "promoted": before - len(registry["not_covered"]),
-        "authorities": len(registry["covered"]),
-        "services": sum(len(a["services"]) for a in registry["covered"]),
-    }
+    from chatbot.rag.registry_sync import sync
+    return sync(OUT_DIR, path, write=True)
 
 
 def main():
@@ -686,12 +643,11 @@ def main():
     print(f"skipped : {skipped} (existed; copies in {REVIEW_DIR})")
     print(f"rejected: {len(rejected)} written to {REVIEW_DIR} for review")
 
+    from chatbot.rag.registry_sync import format_report
+
     summary = update_registry(accepted)
-    print(f"\nregistry: +{len(summary['added'])} authorities "
-          f"({', '.join(summary['added']) or 'none new'}), "
-          f"{summary['promoted']} promoted out of not_covered")
-    print(f"          now {summary['authorities']} authorities, "
-          f"{summary['services']} services")
+    print()
+    print(format_report(summary, wrote=True))
 
     print("\nNext: python scripts/build_index.py")
 

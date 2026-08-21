@@ -193,8 +193,12 @@ def chat():
         # flake, so there is nothing worth retrying.
         r_route = run_stage(
             "route",
+            # history[:-1] excludes the current question, which is passed
+            # separately — including it would have the router classify the
+            # same text twice.
             lambda: plan_and_gather(question, service_id=service_id,
-                                    allow_clarify=clarify_count < 1),
+                                    allow_clarify=clarify_count < 1,
+                                    history=history[:-1]),
             policy=DEFAULT_POLICY,
         )
         run.add(r_route, extra={})

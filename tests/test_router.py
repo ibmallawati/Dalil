@@ -139,6 +139,103 @@ def test_context_size_is_capped(spy, monkeypatch):
     assert len(plan.chunks) == router.MAX_CONTEXT_CHUNKS
 
 
+# --- Follow-up questions: the previous service carries forward -----------
+# «وكم رسومها؟» is a pronoun and a question word. Embedded alone it
+# retrieves noise, and the noise trips the margin check — so the citizen was
+# being asked whether they meant a home-business register, one turn after
+# being told about passports.
+
+PASSPORT_TURN = [
+    {"role": "user", "content": "كيف أجدد جواز سفري؟"},
+    {"role": "assistant", "content": "رسوم التجديد..."},
+]
+
+
+def test_a_follow_up_inherits_the_previous_service(spy):
+    plan = plan_and_gather("وكم رسومها؟", history=PASSPORT_TURN)
+    assert spy["fetch_service"] == ["rop-passport-renewal"]
+    assert any(c["service_id"] == "rop-passport-renewal" for c in plan.chunks)
+
+
+def test_a_follow_up_no_longer_asks_which_service(spy, monkeypatch):
+    """
+    The symptom that started this. Two unrelated services tie on noise, and
+    without an inherited service the margin check reads that as genuine
+    ambiguity.
+    """
+    monkeypatch.setattr(router, "retrieve", lambda q, k=8: [
+        _hit("mociip-home-business-register", "إنشاء سجل تجاري منزلي", 0.827),
+        _hit("rop-driving-licence-new", "إصدار رخصة سياقة جديدة", 0.827),
+    ])
+    assert plan_and_gather("وكم رسومها؟").strategy is Strategy.CLARIFY
+    assert plan_and_gather("وكم رسومها؟", history=PASSPORT_TURN).strategy \
+        is Strategy.SIMILARITY
+
+
+def test_a_new_topic_does_not_inherit(spy):
+    """
+    A question that resolves on its own owns the turn. Inheriting here would
+    drag the old service into an answer that never mentioned it.
+    """
+    plan = plan_and_gather("أريد تجديد رخصة السياقة", history=PASSPORT_TURN)
+    assert spy["fetch_service"] == ["rop-driving-licence-renewal"]
+
+
+def test_nothing_retrieved_still_refuses_even_with_history(spy, monkeypatch):
+    """
+    The guard that makes this safe, and the reason query expansion was
+    rejected instead.
+
+    «ما هي أفضل مطاعم مسقط؟» retrieves nothing and refuses for free. Pasting
+    the previous question in front of it retrieves passport sections at
+    0.835 — an out-of-scope question answered from the wrong service, and a
+    wasted LLM call. Empty retrieval means nothing is close, so there is no
+    follow-up worth serving.
+    """
+    monkeypatch.setattr(router, "retrieve", lambda q, k=8: [])
+    plan = plan_and_gather("ما هي أفضل مطاعم مسقط؟", history=PASSPORT_TURN)
+    assert plan.strategy is Strategy.REFUSE_NO_CONTENT
+    assert spy["fetch_service"] == []      # the hint must not resurrect it
+
+
+def test_an_uncovered_authority_still_refuses_with_history(spy):
+    """L1's refusal runs before any of this and is not softened by context."""
+    plan = plan_and_gather("أريد شكوى في وزارة الخارجية", history=PASSPORT_TURN)
+    assert plan.strategy is Strategy.REFUSE_UNCOVERED
+
+
+def test_the_most_recent_topic_wins(spy):
+    """
+    Read backwards. Forwards would anchor the conversation to whatever was
+    asked first and never let go of it.
+    """
+    history = [
+        {"role": "user", "content": "كيف أجدد جواز سفري؟"},
+        {"role": "assistant", "content": "..."},
+        {"role": "user", "content": "أريد تجديد رخصة السياقة"},
+        {"role": "assistant", "content": "..."},
+    ]
+    plan_and_gather("وكم رسومها؟", history=history)
+    assert spy["fetch_service"] == ["rop-driving-licence-renewal"]
+
+
+def test_assistant_turns_are_not_classified(spy):
+    """
+    The reply names its service in prose. Classifying it would let Daleel's
+    own wording, rather than the citizen's, decide the topic.
+    """
+    history = [{"role": "assistant",
+                "content": "رسوم تجديد جواز السفر خمسة ريالات"}]
+    plan_and_gather("وكم رسومها؟", history=history)
+    assert spy["fetch_service"] == []
+
+
+def test_no_history_behaves_exactly_as_before(spy):
+    plan_and_gather("وكم رسومها؟")
+    plan_and_gather("وكم رسومها؟", history=[])
+    assert spy["fetch_service"] == []
+
+
 # --- CLARIFY: deterministic, no LLM, no embedding ------------------------
 
 def test_ambiguous_passport_question_asks_instead_of_guessing(spy):

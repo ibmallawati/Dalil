@@ -94,7 +94,8 @@ class RetrievalPlan:
         return bool(self.chunks)
 
 
-def plan_and_gather(question: str, *, service_id=None, allow_clarify=True) -> RetrievalPlan:
+def plan_and_gather(question: str, *, service_id=None, allow_clarify=True,
+                    history=None) -> RetrievalPlan:
     """
     Run L1, pick a strategy, and gather grounding accordingly.
 
@@ -110,6 +111,9 @@ def plan_and_gather(question: str, *, service_id=None, allow_clarify=True) -> Re
     enforced HERE rather than in the browser: an agent that interrogates a
     judge for three rounds reads as broken, and a rule that lives only in
     frontend state is one refresh away from not existing.
+
+    `history` — prior turns, so a follow-up that carries no service words of
+    its own can still be routed. See `_carried_service`.
     """
     if service_id:
         chunks = fetch_service(service_id)
@@ -170,7 +174,35 @@ def plan_and_gather(question: str, *, service_id=None, allow_clarify=True) -> Re
     # So the resolved service becomes a HINT that guarantees its sections
     # are present, not a decision that suppresses everything else.
     chunks = retrieve(question, k=SIMILARITY_K)
-    hinted = _merge_hinted_service(chunks, match.service_id)
+
+    # A follow-up question often contains no service words at all — «وكم
+    # رسومها؟» is a pronoun and a question word. Embedding that on its own
+    # retrieves noise, and the noise then trips the margin check, so the
+    # citizen gets asked whether they meant a home-business register one
+    # turn after being told about passports. Measured:
+    #
+    #   retrieve("وكم رسومها؟")
+    #     -> mociip-home-business-register 0.827
+    #        rop-driving-licence-new       0.827   <- tie, fires CLARIFY
+    #
+    # So when the question resolves to nothing itself, the service from the
+    # previous turn carries forward as the hint.
+    carried = None
+    if not match.service_id and chunks:
+        carried = _carried_service(history)
+        if carried:
+            logger.info("route_carried_service_from_history",
+                        extra={"service_id": carried})
+
+    # `and chunks` above is load-bearing. Expanding the query with history
+    # was the other candidate fix and was rejected for exactly this: an
+    # out-of-scope question retrieves NOTHING today and refuses for free,
+    # but «كيف أجدد جواز سفري؟ ما هي أفضل مطاعم مسقط؟» retrieves passport
+    # sections at 0.835 and would reach the model. Empty retrieval means
+    # nothing in the corpus is close, and there is no follow-up worth
+    # serving — carrying a hint there would resurrect a refusal as an
+    # answer grounded in the wrong service.
+    hinted = _merge_hinted_service(chunks, match.service_id or carried)
 
     # Registry/corpus drift: L1 named a service the corpus does not provide.
     # Retrieval may still carry the answer, so this is not fatal — but it is
@@ -206,7 +238,7 @@ def plan_and_gather(question: str, *, service_id=None, allow_clarify=True) -> Re
     #
     # This is the boundary of the demotion: L1 no longer suppresses
     # RETRIEVAL, but it still outranks a similarity tie-break.
-    ambiguous = None if match.service_id else _detect_margin_ambiguity(chunks)
+    ambiguous = None if (match.service_id or carried) else _detect_margin_ambiguity(chunks)
     if ambiguous:
         logger.info("route_clarify_by_margin",
                     extra={"candidates": [o["service_id"] for o in ambiguous["options"]],
@@ -222,6 +254,31 @@ def plan_and_gather(question: str, *, service_id=None, allow_clarify=True) -> Re
         )
 
     return RetrievalPlan(Strategy.SIMILARITY, match, tuple(chunks))
+
+
+def _carried_service(history):
+    """
+    The service the citizen was last talking about, or None.
+
+    Recovered by re-running L1 over the previous user turns rather than by
+    storing anything: classification is local, deterministic and free, and
+    server-side state that has to survive a refresh is a whole category of
+    bug this does not need.
+
+    Walks BACKWARDS and stops at the first turn that resolves. The most
+    recent topic is the one a follow-up refers to — reading forwards would
+    anchor the conversation to whatever was asked first and never let go.
+    """
+    for turn in reversed(history or []):
+        if turn.get("role") != "user":
+            continue
+        content = (turn.get("content") or "").strip()
+        if not content:
+            continue
+        previous = registry.classify(content)
+        if previous.service_id:
+            return previous.service_id
+    return None
 
 
 def _merge_hinted_service(chunks, service_id):

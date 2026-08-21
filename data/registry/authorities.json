@@ -952,6 +952,13 @@
           "variants": [
             "تقديم الشكاوى العمالية"
           ]
+        },
+        {
+          "service_id": "mol-oman-services",
+          "name_ar": "وزارة العمل -سلطنة عمان - الرئيسية",
+          "variants": [
+            "وزارة العمل -سلطنة عمان - الرئيسية"
+          ]
         }
       ]
     },
@@ -997,6 +1004,32 @@
           ]
         }
       ]
+    },
+    {
+      "id": "dgopcs",
+      "name_ar": "الإدارة العامة للجوازات والأحوال المدنية",
+      "name_en": "Directorate General of Passports and Civil Status",
+      "portal_url": null,
+      "variants": [
+        "الإدارة العامة للجوازات والأحوال المدنية"
+      ],
+      "services": [
+        {
+          "service_id": "rop-civil-id-issuance",
+          "name_ar": "خدمة إصدار بطاقة الاحوال المدنية (لشخص)",
+          "variants": [
+            "خدمة إصدار بطاقة الاحوال المدنية (لشخص)"
+          ]
+        },
+        {
+          "service_id": "rop-passport-issuance",
+          "name_ar": "خدمة إصدار الجواز العماني",
+          "variants": [
+            "خدمة إصدار الجواز العماني"
+          ]
+        }
+      ],
+      "auto_registered": true
     }
   ],
   "_ambiguous_comment": [
