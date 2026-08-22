@@ -231,7 +231,18 @@ def sync(corpus_dir, registry_path, write=True):
     taken = {entry["id"] for entry in registry["covered"]}
 
     report = {"added": [], "promoted": [], "services_added": [],
-              "rejected": [], "registry_path": str(registry_path)}
+              "rejected": [], "conflicts": [], "registry_path": str(registry_path)}
+
+    # service_id is the join key and must be unique across the WHOLE registry,
+    # not just within one authority.
+    #
+    # Checking only the authority's own list registered rop-passport-issuance
+    # twice — once under شرطة عمان السلطانية where it had always been, and
+    # again under الإدارة العامة للجوازات, because the corpus file names the
+    # directorate on the page rather than the police. Two owners for one id is
+    # a contradiction about who provides the service.
+    owner_of = {s["service_id"]: entry["id"]
+                for entry in registry["covered"] for s in entry["services"]}
 
     for folded, found in corpus.items():
         entry = index.get(folded)
@@ -264,16 +275,41 @@ def sync(corpus_dir, registry_path, write=True):
                 "services": len(found["services"]),
             })
 
-        known = {s["service_id"] for s in entry["services"]}
         for service in found["services"]:
-            if service["service_id"] in known:
+            service_id = service["service_id"]
+            owner = owner_of.get(service_id)
+            if owner == entry["id"]:
+                continue                       # already registered here
+            if owner is not None:
+                # Registered under a DIFFERENT authority. Reassigning it would
+                # rewrite an existing entry, and silently duplicating it would
+                # give one service two owners. Report and let a human decide.
+                report["conflicts"].append({
+                    "service_id": service_id,
+                    "registered_under": owner,
+                    "corpus_says": entry["id"],
+                    "authority_ar": found["name_ar"],
+                })
                 continue
             entry["services"].append({
-                "service_id": service["service_id"],
+                "service_id": service_id,
                 "name_ar": service["name_ar"],
                 "variants": [service["name_ar"]],
             })
-            report["services_added"].append(service["service_id"])
+            owner_of[service_id] = entry["id"]
+            report["services_added"].append(service_id)
+
+    # An authority auto-added whose every service turned out to belong to
+    # someone else has nothing behind it. Leaving it would declare coverage
+    # the corpus cannot supply — the inverse of the bug this module fixes.
+    empty = {item["id"] for item in report["added"]
+             if not any(e["id"] == item["id"] and e["services"]
+                        for e in registry["covered"])}
+    if empty:
+        registry["covered"] = [e for e in registry["covered"]
+                               if e["id"] not in empty]
+        report["added"] = [i for i in report["added"] if i["id"] not in empty]
+        report["dropped_empty"] = sorted(empty)
 
     # An authority present in both lists would let the uncovered check fire
     # on a name the corpus now covers: an instant refusal for a question
@@ -338,6 +374,23 @@ def format_report(report, wrote=True):
         lines.append("  entry from `covered` — every auto-added entry is marked")
         lines.append('   "auto_registered": true so they are easy to find.')
         lines.append("  " + "!" * 66)
+
+    if report.get("conflicts"):
+        lines.append("")
+        lines.append("  CONFLICT — these services are already registered under a")
+        lines.append("  DIFFERENT authority. One service cannot have two owners, so")
+        lines.append("  nothing was changed. Either correct the `authority:` in the")
+        lines.append("  corpus file, or add its wording as a variant of the existing")
+        lines.append("  authority so both names route to one place:")
+        for c in report["conflicts"]:
+            lines.append(f"    - {c['service_id']}")
+            lines.append(f"        registered under : {c['registered_under']}")
+            lines.append(f"        corpus file says : {c['authority_ar']}")
+
+    if report.get("dropped_empty"):
+        lines.append("")
+        lines.append("  Not added after all (every service belonged elsewhere): "
+                     + ", ".join(report["dropped_empty"]))
 
     if report["rejected"]:
         lines.append("")

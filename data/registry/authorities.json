@@ -27,7 +27,11 @@
         "الشرطه",
         "الشرطة",
         "royal oman police",
-        "rop"
+        "rop",
+        "الإدارة العامة للجوازات والأحوال المدنية",
+        "الجوازات والأحوال المدنية",
+        "الأحوال المدنية",
+        "الجوازات"
       ],
       "services": [
         {
@@ -1004,32 +1008,6 @@
           ]
         }
       ]
-    },
-    {
-      "id": "dgopcs",
-      "name_ar": "الإدارة العامة للجوازات والأحوال المدنية",
-      "name_en": "Directorate General of Passports and Civil Status",
-      "portal_url": null,
-      "variants": [
-        "الإدارة العامة للجوازات والأحوال المدنية"
-      ],
-      "services": [
-        {
-          "service_id": "rop-civil-id-issuance",
-          "name_ar": "خدمة إصدار بطاقة الاحوال المدنية (لشخص)",
-          "variants": [
-            "خدمة إصدار بطاقة الاحوال المدنية (لشخص)"
-          ]
-        },
-        {
-          "service_id": "rop-passport-issuance",
-          "name_ar": "خدمة إصدار الجواز العماني",
-          "variants": [
-            "خدمة إصدار الجواز العماني"
-          ]
-        }
-      ],
-      "auto_registered": true
     }
   ],
   "_ambiguous_comment": [

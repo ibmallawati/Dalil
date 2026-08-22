@@ -1,11 +1,37 @@
+# Keep out of the image anything the RUNNING app does not read.
+#
+# The request path needs: src/, static/, templates/, data/index/ (the
+# embeddings and chunks) and data/registry/ (what Daleel claims to cover).
+# Everything else is build-time material or source material, and every
+# megabyte here is a megabyte of cold-start image pull on Cloud Run.
+
 .env
+.git/
+.claude/
 __pycache__/
+*.egg-info/
+*.pyc
+.pytest_cache/
+venv/
+.venv/
+.venv-wsl/
+logs/
+tests/
 experiments/
 *.csv
-.git/
-venv/
-.venv-wsl/
-tests/
-logs/
-*.egg-info/
-.pytest_cache/
+
+# Source PDFs and their OCR output. The corpus built FROM them ships; they
+# do not. This was 132 MB of pdf_inbox alone.
+data/pdf_inbox/
+data/pdf_ocr/
+
+# Import rejects awaiting a human, and raw scraper output. Both are working
+# material for building the corpus, never read at runtime.
+data/needs_review/
+data/scraped_raw/
+
+# A 63 MB scrape of qanoon.om, kept for reference. Not corpus, not indexed.
+scrape_qanoon_run1/
+
+# Developer documentation.
+docs/

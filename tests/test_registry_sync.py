@@ -263,6 +263,67 @@ def test_an_unreadable_file_does_not_stop_the_rest(corpus, registry, tmp_path):
     assert any(a["id"] == "mot" for a in load(registry)["covered"])
 
 
+# --- One service, one owner ----------------------------------------------
+# Checking only the authority's own list registered rop-passport-issuance
+# twice: once under شرطة عمان السلطانية where it had always been, and again
+# under الإدارة العامة للجوازات, because the corpus file names the directorate
+# printed on the page rather than the police.
+
+def test_a_service_owned_elsewhere_is_not_duplicated(corpus, registry, tmp_path):
+    corpus("rop-passport-renewal", "الإدارة العامة للجوازات والأحوال المدنية",
+           "تجديد جواز السفر", "Directorate General of Passports")
+    report = sync(tmp_path, registry)
+
+    owners = [a["id"] for a in load(registry)["covered"]
+              for s in a["services"] if s["service_id"] == "rop-passport-renewal"]
+    assert owners == ["rop"], "one service_id must have exactly one owner"
+    assert report["conflicts"][0]["service_id"] == "rop-passport-renewal"
+    assert report["conflicts"][0]["registered_under"] == "rop"
+
+
+def test_an_authority_whose_services_all_belong_elsewhere_is_not_added(
+        corpus, registry, tmp_path):
+    """
+    Declaring an authority with no services behind it is the inverse of the
+    bug this module exists to fix: coverage claimed, nothing to answer with.
+    """
+    corpus("rop-passport-renewal", "الإدارة العامة للجوازات والأحوال المدنية",
+           "تجديد جواز السفر", "Directorate General of Passports")
+    report = sync(tmp_path, registry)
+    assert [a["id"] for a in load(registry)["covered"]] == ["rop"]
+    assert report["added"] == []
+    assert report["dropped_empty"] == ["dgop"]
+
+
+def test_a_conflict_is_reported_loudly(corpus, registry, tmp_path):
+    corpus("rop-passport-renewal", "الإدارة العامة للجوازات والأحوال المدنية",
+           "تجديد جواز السفر", "Directorate General of Passports")
+    text = format_report(sync(tmp_path, registry))
+    assert "CONFLICT" in text
+    assert "rop-passport-renewal" in text
+
+
+def test_naming_a_directorate_as_a_variant_resolves_the_conflict(
+        corpus, registry, tmp_path):
+    """
+    The fix a human applies after reading that warning: the directorate is
+    ROP's passports department, so its wording becomes a variant and both
+    names route to one authority.
+    """
+    data = json.loads(registry.read_text(encoding="utf-8"))
+    data["covered"][0]["variants"].append("الإدارة العامة للجوازات والأحوال المدنية")
+    registry.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+    corpus("rop-birth-certificate", "الإدارة العامة للجوازات والأحوال المدنية",
+           "استخراج شهادة ميلاد", "Directorate General of Passports")
+    report = sync(tmp_path, registry)
+
+    assert report["conflicts"] == []
+    assert len(load(registry)["covered"]) == 1
+    rop = load(registry)["covered"][0]
+    assert "rop-birth-certificate" in {s["service_id"] for s in rop["services"]}
+
+
 # --- The warning is the point --------------------------------------------
 
 def test_the_report_names_every_consequence(corpus, registry, tmp_path):
