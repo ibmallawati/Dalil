@@ -53,11 +53,24 @@ REQUIRED_FIELDS = (
     "authority_en",    # English/Latin name, for logs and the panel
     "service",         # Arabic name of the service
     "service_id",      # stable slug, e.g. rop-passport-renewal
-    "source_url",      # D5 cites THIS, never the filename
-    "source_title",    # title of the official page, as published
+    "source_title",    # title of the official page or document, as published
     "retrieved",       # ISO date the content was taken from source
     "verified_by",     # who checked it against the official page
 )
+
+# Provenance: at least ONE of these, not necessarily a URL.
+#
+# source_url was required until PDF-sourced content arrived and made that
+# impossible. OCR of the ministry service guides recovered a usable URL for
+# 0 of 97 services — the links are in the page images as mangled glyphs
+# («رابط الخدمة: مرمء. + مع دطاء<-ع1نا1117») and the source PDFs are not in
+# the repo, so there is nothing to recover them from.
+#
+# Requiring a URL there would mean either dropping the content or inventing
+# links. A printed services guide has no clickable link and is still a real,
+# checkable citation: honest attribution requires being SPECIFIC, not being
+# a hyperlink. So a file may cite a URL, a text reference, or both.
+PROVENANCE_FIELDS = ("source_url", "source_ref")
 
 # A curated file whose facts nobody has checked must not reach a demo
 # silently. Values that mean "not yet verified".
@@ -121,11 +134,23 @@ def validate_front_matter(meta, path_label="<string>"):
             f"{', '.join(missing)}. See docs/CORPUS_SPEC.md."
         )
 
-    url = str(meta["source_url"]).strip()
-    if not url.startswith(("http://", "https://")):
+    # A file with nothing to cite must not reach a citizen. An answer whose
+    # provenance row is blank reads as "Daleel made this up", and it would
+    # be indistinguishable from one that did.
+    if not any(str(meta.get(f, "")).strip() for f in PROVENANCE_FIELDS):
+        raise CorpusError(
+            f"{path_label}: no provenance. Give source_url (a full link) or "
+            f"source_ref (a text citation, e.g. «دليل خدمات وزارة الداخلية، "
+            f"ص ١٤») — a file with neither cannot be cited. "
+            f"See docs/CORPUS_SPEC.md."
+        )
+
+    url = str(meta.get("source_url", "")).strip()
+    if url and not url.startswith(("http://", "https://")):
         raise CorpusError(
             f"{path_label}: source_url must be a full URL (D5 cites it "
-            f"directly to the citizen), got: {url!r}"
+            f"directly to the citizen), got: {url!r}. For a document with no "
+            f"link, use source_ref instead."
         )
 
     # service_id must equal the filename stem.
@@ -245,8 +270,10 @@ def load_file(path):
             "authority_en": meta["authority_en"],
             "service": meta["service"],
             "service_id": meta["service_id"],
-            # D5's source_document cites source_url, never the filename.
-            "source_url": meta["source_url"],
+            # D5 cites these, never the filename. Either may be absent; the
+            # citation renderer falls back from url to ref to title.
+            "source_url": str(meta.get("source_url", "")).strip() or None,
+            "source_ref": str(meta.get("source_ref", "")).strip() or None,
             "source_title": meta["source_title"],
             "retrieved": str(meta["retrieved"]),
             "verified_by": meta["verified_by"],

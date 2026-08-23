@@ -1,191 +1,231 @@
 ---
-title Omantel Chatbot
-emoji 💬
-colorFrom blue
-colorTo green
-sdk docker
-app_port 7860
-pinned false
+title: Daleel
+emoji: 🧭
+colorFrom: green
+colorTo: red
+sdk: docker
+app_port: 7860
+pinned: false
+short_description: مساعد عربي لإجراءات الخدمات الحكومية في سلطنة عُمان
 ---
 
-# Omantel Chatbot
+# دليل / Daleel
 
-Flask backend that routes each question to either text-to-SQL (billing/plan
-facts) or RAG (policy/how-to questions from PDFs), with a fault-tolerant
-per-stage runner so a broken request always tells you which stage broke.
+An Arabic assistant for Omani government service procedures. Ask how to renew
+a passport, what a civil-ID replacement costs, or which documents a commercial
+registration needs — and get an answer taken from a curated corpus, with the
+source attached.
 
-## Project structure
+Built for the MTCIT **Engineer it with AI** national competition
+(Programming & Development track).
+
+**The one rule the whole design serves:** never state a government fee,
+document or deadline that is not in the corpus. A wrong fee costs a citizen a
+wasted trip to a counter, so the system refuses far more readily than it
+guesses.
+
+## How a question is answered
 
 ```
-src/chatbot/
-  app.py                 # Flask app + routes (entry point: python -m chatbot.app)
-  config.py              # env vars read/validated in one place -> `settings`
-  logging_config.py       # JSON stdout logging setup
-  rag/retrieval.py        # embeds + retrieves chunks (LOCAL sentence-transformers)
-  rag/arabic.py            # D3 Arabic normalization, shared by index + query paths
-  rag/ocr.py                # OCR fallback for scanned PDFs (build-time only)
-  sql/engine.py             # single-DB text-to-SQL: schema, guard, execute
-  sql/multi_db.py            # ATTACHes multiple SQLite files under one connection
-  reliability/               # retry/backoff fault-tolerance layer
-    stage_runner.py            # runs a stage, retries per policy, reports outcome
-    failure_classifier.py       # decides retry-vs-terminal for an exception
-    run_record.py                 # collects one request's stage outcomes, writes the log
-scripts/build_index.py     # offline: PDFs -> data/index/{embeddings.npy,chunks.json}
-tests/                      # pytest suite
-data/
-  source_docs/               # source PDFs
-  index/                       # prebuilt embeddings + chunk metadata (committed)
-  databases/                     # SQLite files the text-to-SQL path can query
-static/, templates/           # Flask UI assets
-logs/                           # gitignored; chat_log.csv + stage_log.jsonl land here
+question
+   │
+   ├─ L1  registry     does Daleel cover this authority at all?
+   │                   Arabic keyword match, no model, no embedding.
+   │                   An uncovered ministry is refused here, for free.
+   │
+   ├─ L2  retrieval    embed the question, cosine-match the corpus.
+   │                   Runs for every question that gets past L1.
+   │                   Two services scoring near-identically -> ask which.
+   │
+   └─ L3  grounding    the model answers AND reports whether the passages
+                       actually supported it. "none" becomes a refusal
+                       rather than a confident-looking guess.
 ```
+
+L1 is a **hint**, not a gate: a resolved service guarantees its sections reach
+the model, but never suppresses retrieval. That matters for questions spanning
+two services — «كم رسوم تجديد جواز السفر ورخصة السياقة؟» is answered from both
+files, and cited to both.
+
+Citations are never the model's to choose. Provenance is attached afterwards
+from corpus metadata, and narrowed to the passages the answer can actually be
+traced to.
 
 ## Deployment
 
-- **Host**: [Render](https://dashboard.render.com), web service `srv-d9abdncs728c73eg8qeg`,
-  built directly from this repo's [Dockerfile](Dockerfile) (no `render.yaml` —
-  build/start command and env vars are configured in the Render dashboard).
-- **Port**: the app reads `$PORT` from the environment (Render injects it) and
-  falls back to `7860` for local runs (see [src/chatbot/config.py](src/chatbot/config.py)).
-- **Runtime**: Flask's built-in dev server (`app.run(...)`) — fine for this
-  project's traffic, not a hardened production WSGI setup.
+Runs as a **Docker Space** on Hugging Face. The `sdk: docker` and
+`app_port: 7860` above are what configure that — the Dockerfile listens on
+`$PORT` and falls back to 7860.
 
-## Logging & observability
+### Required secret
 
-Render's **Logs** tab only captures **stdout/stderr** — it never reads files
-the process writes to its own disk, and the container's disk isn't
-persistent across restarts/redeploys anyway. So the app logs on two channels
-that look similar but serve different purposes:
+| Name | Where | Notes |
+|---|---|---|
+| `LLM_API_KEY` | Space → Settings → **Variables and secrets** → *New secret* | Must be a **secret**, not a variable. Variables are publicly visible. |
 
-| Channel | Where | Survives a redeploy? | Visible in Render dashboard? |
-|---|---|---|---|
-| Structured JSON logs (`logging` → stdout) | `logging_config.py` | n/a (streamed live) | **Yes** — this is what you watch |
-| `stage_log.jsonl` / `chat_log.csv` | local container disk | No | No |
+Optional, all with working defaults in
+[`src/chatbot/config.py`](src/chatbot/config.py): `LLM_BASE_URL`, `LLM_MODEL`,
+`EMBED_MODEL`, `LOG_LEVEL`.
 
-The stdout logs are the source of truth in production. The two local files
-still get written (same fields, same content) purely as a local-dev
-convenience for tailing/grepping on your own machine; don't rely on them for
-anything running on Render.
+`LLM_MODEL` accepts a comma-separated failover chain, tried in order:
 
-### What gets logged
-
-One JSON object per line, via Python's standard `logging` module (no
-`print()` calls left on the request path):
-
-- **Startup**: index/database load results — `rag_index_loaded`,
-  `text_to_sql_ready`, or a `WARNING`/`ERROR` line if something's missing.
-- **Per request**: `chat_request_received` → one `stage_completed` line per
-  stage (`route`, `retrieve`/`generate`, or `sql`) → `chat_request_completed`
-  (or `chat_request_failed` with the traceback and which stage broke).
-- **Rate limiting**: `rate_limit_exceeded` when Flask-Limiter's 20/min cap
-  trips for an IP.
-
-Severity is meaningful, not decorative:
-
-- `ERROR` — a stage failed outright (`chat_request_failed`, `stage_completed`
-  with `status: failed`, index/schema load failures).
-- `WARNING` — worked, but only after a retry (`status: retried_ok`), or a
-  config issue that degrades a feature (missing DB file, missing index).
-- `INFO` — normal request/stage lifecycle.
-- `DEBUG` — noisy per-candidate detail (e.g. every RAG chunk's similarity
-  score); off by default.
-
-Example lines you'll see in the Render Logs tab for one request:
-
-```json
-{"ts": "...", "level": "INFO", "logger": "chatbot.app", "message": "chat_request_received", "request_id": "e37724807b14", "query": "hey"}
-{"ts": "...", "level": "INFO", "logger": "chatbot.reliability.run_record", "message": "stage_completed", "request_id": "e37724807b14", "stage": "route", "status": "ok", "attempts": 1, "duration_s": 1.8}
-{"ts": "...", "level": "INFO", "logger": "chatbot.reliability.run_record", "message": "stage_completed", "request_id": "e37724807b14", "stage": "retrieve", "status": "empty", "attempts": 1, "duration_s": 0.57, "chunk_ids": []}
-{"ts": "...", "level": "INFO", "logger": "chatbot.app", "message": "chat_request_completed", "request_id": "e37724807b14", "route": "rag", "status": "ok", "total_duration_s": 2.3}
+```
+LLM_MODEL=gemini-3.6-flash,gemini-3.5-flash-lite,gemini-3.1-flash-lite
 ```
 
-`request_id` is the correlation key — search/filter Render's log viewer by it
-to see one request's full story end to end.
+A per-day quota exhaustion is terminal and moves to the next model; a
+per-minute limit is retried. The model that actually answered is reported in
+the response and shown in the UI.
 
-### Controlling verbosity
+### First boot is slow
 
-Set the `LOG_LEVEL` env var on the Render service (default `INFO`):
+The embedding model (~1.1 GB) downloads on first start and is then cached, and
+the app warms it before serving so the first citizen question is not the one
+that pays for it. Expect a few minutes on a cold Space build.
 
-- `LOG_LEVEL=DEBUG` — temporarily, while investigating a retrieval-quality
-  issue, to also see every candidate chunk's similarity score.
-- `LOG_LEVEL=WARNING` — quiet mode, only retries/failures/config issues.
-
-### Why stdout is unbuffered
-
-The [Dockerfile](Dockerfile) sets `ENV PYTHONUNBUFFERED=1`. Without it,
-Python block-buffers stdout inside a container (it isn't a TTY), so log
-lines can show up late, batched, or not at all before a crash — this is the
-most common reason a container "isn't logging" when the code is fine.
-
-## Local development
+## Running locally
 
 ```bash
 python -m venv venv
-venv\Scripts\activate          # Windows; `source venv/bin/activate` on macOS/Linux
-pip install -e ".[dev]"        # installs the `chatbot` package (editable) + pytest
-cp .env.example .env           # then fill in LLM_API_KEY
+venv\Scripts\activate         # Windows;  source venv/bin/activate elsewhere
+pip install -e ".[dev]"
+cp .env.example .env          # then fill in LLM_API_KEY
 python -m chatbot.app
 ```
 
-Requires a `.env` with `LLM_API_KEY` set — see [.env.example](.env.example) for
-the full list of variables `chatbot.config` reads. Logs print as JSON lines to
-your terminal the same way they do on Render.
+```bash
+pytest                        # no network, no real backoff waits
+```
 
-### Where the models run
+## Where the models run
 
-Two model workloads, two very different places:
-
-| Workload | Where it runs | Configured by | Needs network? |
+| Workload | Where | Configured by | Needs network? |
 |---|---|---|---|
 | Generation | remote, OpenAI-**compatible** endpoint | `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY` | yes |
 | Embeddings | **in-process**, sentence-transformers | `EMBED_MODEL`, `EMBED_DIM` | no |
 
 Generation is provider-neutral on purpose: Gemini's free tier today, a local
 Ollama server (`LLM_BASE_URL=http://localhost:11434/v1`) as the offline
-fallback. Swapping between them is a `.env` edit, not a code change.
+fallback. Swapping is a `.env` edit, not a code change.
 
-Embeddings never leave the machine, so retrieval cannot rate-limit, time out,
-or fail on an expired token. The **same** model and the **same** D3
-normalization (`rag/arabic.py`) run at index-build time and at query time —
-if those two paths ever diverge, retrieval degrades with no error and no
-failing test.
+Embeddings never leave the process, so **retrieval cannot rate-limit, time out
+or fail on an expired token** — only generation can. The same model and the
+same Arabic normalisation (`rag/arabic.py`) run at index-build time and at
+query time; if those two paths ever diverge, retrieval degrades silently with
+no failing test, which is why they share one module.
 
-The embedding weights download from the HF hub on first use and are then
-cached (`HF_HOME`). That download is free and needs no token — these are
-public models.
+## The corpus
 
-### Running tests
+One markdown file per service in `data/source_docs/`, each carrying
+front-matter that every chunk inherits — authority, service, and a citation.
 
-```bash
-pytest
+```yaml
+---
+authority: شرطة عمان السلطانية
+authority_en: Royal Oman Police
+service: تجديد جواز السفر
+service_id: rop-passport-renewal     # must equal the filename stem
+source_url: https://www.rop.gov.om/...   # a URL, or…
+source_ref: دليل الخدمات الحكومية، ص ١٤   # …a text citation, for print sources
+retrieved: 2026-08-17
+verified_by: PENDING
+---
 ```
 
-Covers the SQL safety guard + happy/guard-path answering
-(`tests/test_sql_engine.py`), the retry/backoff runner
-(`tests/test_stage_runner.py`), and the retry-vs-terminal error classifier
-(`tests/test_failure_classifier.py`) — no network calls, no waiting on real
-backoff delays.
+`service_id` is the join key to `data/registry/authorities.json`. One character
+of drift and the service refuses every question while sitting fully indexed, so
+the build enforces the match. See [docs/CORPUS_SPEC.md](docs/CORPUS_SPEC.md).
 
-## Building the RAG index (offline)
+### Adding content
 
-`scripts/build_index.py` reads every PDF in `data/source_docs/`, extracts
-text (with an OCR fallback for scanned pages/PDFs), chunks and embeds it, and
-writes `data/index/embeddings.npy` + `data/index/chunks.json`. Only those two
-artifacts (plus `src/chatbot/rag/retrieval.py`) are needed at deploy time —
-the build itself runs locally:
+**Hand-written markdown** — drop a file in `data/source_docs/`, then:
 
 ```bash
-pip install -e ".[build]"   # adds pytesseract + pdf2image on top of the base deps
+python scripts/sync_registry.py --write   # declare it so questions can reach it
+python scripts/build_index.py             # re-embed
+```
+
+**From a PDF** — drop it in `data/pdf_inbox/`, then:
+
+```bash
+python scripts/ocr_inbox.py               # PDF  -> data/pdf_ocr/*.ocr.txt
+python scripts/import_ocr_corpus.py       # dry run: what would be imported
+python scripts/import_ocr_corpus.py --write
 python scripts/build_index.py
 ```
 
-Tesseract/poppler are build-machine-only system packages, never installed in
-the Dockerfile:
+Every page is OCR'd, including pages that already contain digital text: the
+ministry PDFs carried Arabic with `U+064B` in place of the space character,
+which is long enough to pass any "does this page have text?" check and fuses
+every word once tashkeel is stripped. One extraction path cannot silently pick
+the wrong one.
 
-- Debian/Ubuntu: `sudo apt install tesseract-ocr tesseract-ocr-eng tesseract-ocr-ara poppler-utils`
-- macOS: `brew install tesseract tesseract-lang poppler`
+The importer uses **no LLM**. The version it replaced asked a model to
+restructure OCR text and it repaired damage instead of reporting it —
+`«.تختلة 1 نوع النشاط والتر خب»` became a fluent, invented
+`«تختلف حسب نوع النشاط والترخيص»`. Everything now is a pure string operation,
+so there is nothing to fabricate and nothing to validate. OCR typos reach the
+corpus unfixed; a visible typo is a far better failure than an invented fee.
 
-Each page is tried with `pypdf` first; if it has no usable text layer, it
-falls back to Tesseract OCR (`eng+ara`). The build prints a per-page
-`text_layer`/`ocr` summary, and each chunk in `chunks.json` carries an
-`extraction_source` field so weak-OCR pages can be traced later.
+See [docs/PDF_INTAKE_SPEC.md](docs/PDF_INTAKE_SPEC.md).
+
+## Project structure
+
+```
+src/chatbot/
+  app.py                    # Flask routes; entry point: python -m chatbot.app
+  config.py                 # every env var read and validated in one place
+  llm.py                    # provider-neutral generation + failover chain
+  agent/
+    registry.py             # L1: Arabic keyword classification, no model
+    router.py               # picks how to gather grounding, and why
+    answer.py               # L2/L3: one call produces answer + confidence
+    card.py                 # provenance and the confidence verdict
+  rag/
+    retrieval.py            # embeds and retrieves (local sentence-transformers)
+    markdown_corpus.py      # loads + validates the curated corpus
+    arabic.py               # Arabic normalisation, shared by index and query
+    registry_sync.py        # keeps every corpus file routable
+    ocr.py                  # build-time only; never ships to the request path
+  reliability/              # per-stage retry/backoff, and honest failure reporting
+  sql/                      # legacy text-to-SQL from the fork; not in the request path
+scripts/
+  build_index.py            # corpus  -> embeddings.npy + chunks.json
+  ocr_inbox.py              # PDFs    -> OCR text
+  import_ocr_corpus.py      # OCR text-> corpus files, mechanically
+  sync_registry.py          # corpus  -> registry entries
+data/
+  source_docs/              # the corpus, one markdown file per service
+  registry/authorities.json # what Daleel claims to cover
+  index/                    # prebuilt embeddings + chunks (committed)
+  pdf_inbox/                # drop PDFs here (the PDFs themselves are gitignored)
+tests/                      # pytest; no network
+```
+
+The `sql/` package is kept from the fork this project started as. It is not on
+the request path — Daleel has no database — but its tests still run and it is
+part of the project's history.
+
+## Logging
+
+One JSON object per line to **stdout**, which is what the Space's log viewer
+reads. Files under `logs/` are written too, but only as a local convenience —
+a container's disk does not survive a restart.
+
+- **Startup** — `rag_index_loaded`, `embedder_warmup_complete`, or a
+  `WARNING`/`ERROR` if something is missing.
+- **Per request** — `chat_request_received` → one `stage_completed` per stage
+  → `chat_request_completed`, or `chat_request_failed` with the stage that
+  broke.
+- **Correlation** — every line carries `request_id`; filter by it to read one
+  request end to end.
+
+Severity is meaningful, not decorative: `ERROR` is a stage that failed,
+`WARNING` is something that worked only after a retry or a config problem that
+degrades a feature, `INFO` is the normal lifecycle. `LOG_LEVEL=DEBUG` adds
+per-chunk similarity scores when investigating retrieval quality.
+
+The Dockerfile sets `PYTHONUNBUFFERED=1`. Without it Python block-buffers
+stdout inside a container, and log lines arrive late, batched, or not at all
+before a crash — the most common reason a container "isn't logging" when the
+code is fine.

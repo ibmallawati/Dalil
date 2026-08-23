@@ -1,167 +1,118 @@
 """
-D5 card schema tests — the missing-field policy.
+Provenance + confidence tests.
 
-The property under test: a field the corpus does not support renders as
-«غير محدد في المصدر», never as null and never as something the model made
-up. Both failure modes are silent, and one of them puts an invented
-government fee underneath a real source URL.
+The six-field card and its «غير محدد في المصدر» padding are gone — the
+answer shape now follows the question. What remains here is the part that
+was never about layout, and both halves are correctness properties:
+
+  - a citation is read off the corpus, never accepted from the model;
+  - an unrecognised confidence is treated as no grounding, not ignored.
 """
 
 import pytest
 
 from chatbot.agent.card import (
-    CARD_FIELDS,
-    NOT_IN_SOURCE,
-    apply_missing_field_policy,
-    empty_card,
+    CONFIDENCE_VALUES,
     metadata_from,
-    missing_fields,
+    normalise_confidence,
+    sources_from,
 )
 
 
-def chunk(section, **kw):
-    base = {
-        "section": section,
-        "text": f"نص {section}",
-        "service": "تجديد جواز السفر",
-        "service_id": "rop-passport-renewal",
-        "authority": "شرطة عمان السلطانية",
-        "source_url": "https://www.rop.gov.om/passport",
-        "source_title": "تجديد جواز السفر",
+def chunk(service="تجديد جواز السفر", url="https://www.rop.gov.om/passport",
+          authority="شرطة عمان السلطانية", title="تجديد جواز السفر", ref=None,
+          section="الرسوم"):
+    c = {
+        "service": service, "authority": authority, "section": section,
+        "source_url": url, "source_title": title, "text": "نص",
     }
-    base.update(kw)
-    return base
+    if ref is not None:
+        c["source_ref"] = ref
+    return c
 
 
-FULL = [chunk(f.section_ar) for f in CARD_FIELDS]
-# A real curated file may legitimately omit sections the official page has
-# nothing for -- here, no published fee and no stated duration.
-PARTIAL = [chunk(f.section_ar) for f in CARD_FIELDS
-           if f.section_ar not in ("الرسوم", "المدة المتوقعة")]
+# --- confidence ----------------------------------------------------------
 
-
-# --- Missing fields are detected from the CONTEXT, before generation -----
-
-def test_full_context_has_no_missing_fields():
-    assert missing_fields(FULL) == []
-
-
-def test_missing_sections_are_identified():
-    assert set(missing_fields(PARTIAL)) == {"fees", "estimated_time"}
-
-
-# --- The rule ------------------------------------------------------------
-
-def test_missing_field_renders_as_not_in_source():
-    card = apply_missing_field_policy({"fees": None}, PARTIAL)
-    assert card["fees"] == NOT_IN_SOURCE
-    assert card["estimated_time"] == NOT_IN_SOURCE
-
-
-def test_missing_field_is_never_null():
-    """A null field is dropped by the UI, and an absent «الرسوم» row reads
-    to a citizen as 'this service is free'."""
-    card = apply_missing_field_policy({}, PARTIAL)
-    for f in CARD_FIELDS:
-        assert card[f.key] is not None
-        assert card[f.key] != ""
-
-
-def test_model_invented_value_for_an_unsupported_field_is_overwritten():
-    """
-    THE test. The model was asked for eight fields and helpfully produced a
-    fee that appears nowhere in the context. Because «الرسوم» is absent from
-    the retrieved sections, the policy overwrites it structurally --
-    regardless of what the model returned, and regardless of whether it
-    followed the prompt.
-    """
-    hallucinated = {
-        "fees": "٥٠ ريالاً عمانياً",
-        "estimated_time": "خمسة أيام عمل",
-        "steps": ["خطوة"],
-    }
-    card = apply_missing_field_policy(hallucinated, PARTIAL)
-    assert card["fees"] == NOT_IN_SOURCE
-    assert card["estimated_time"] == NOT_IN_SOURCE
-    # Fields the context DOES support are left alone.
-    assert card["steps"] == ["خطوة"]
-
-
-def test_supported_fields_survive_untouched():
-    card = apply_missing_field_policy(
-        {f.key: f"قيمة {f.key}" for f in CARD_FIELDS}, FULL)
-    for f in CARD_FIELDS:
-        assert card[f.key] == f"قيمة {f.key}"
-
-
-def test_empty_list_is_treated_as_missing():
-    card = apply_missing_field_policy({"required_documents": []}, FULL)
-    assert card["required_documents"] == NOT_IN_SOURCE
-
-
-def test_list_fields_are_cleaned_but_kept():
-    card = apply_missing_field_policy(
-        {"required_documents": ["البطاقة الشخصية", "  ", ""]}, FULL)
-    assert card["required_documents"] == ["البطاقة الشخصية"]
-
-
-# --- Provenance comes from the corpus, not the model ---------------------
-
-def test_source_url_is_taken_from_chunk_metadata():
-    """
-    A hallucinated citation is worse than no citation: it survives a glance.
-    The model is never the authority on where its own context came from.
-    """
-    card = apply_missing_field_policy(
-        {"source_url": "https://totally-made-up.example/passport"}, FULL)
-    assert card["source_url"] == "https://www.rop.gov.om/passport"
-
-
-def test_metadata_from_empty_context_is_none_not_invented():
-    assert metadata_from([]) == {k: None for k in
-                                 ("service_name", "authority", "source_url", "source_title")}
-
-
-# --- Confidence (L3) -----------------------------------------------------
-
-@pytest.mark.parametrize("value", ["high", "partial", "none"])
+@pytest.mark.parametrize("value", CONFIDENCE_VALUES)
 def test_valid_confidence_survives(value):
-    assert apply_missing_field_policy({"confidence": value}, FULL)["confidence"] == value
+    assert normalise_confidence(value) == value
 
 
 @pytest.mark.parametrize("value", [None, "", "very high", "HIGH", 0.9, "maybe"])
-def test_unparseable_confidence_degrades_to_none(value):
+def test_unrecognised_confidence_degrades_to_none(value):
     """
     An unreadable confidence is not evidence of grounding. Defaulting to
-    'none' makes the UI refuse rather than present an unverified card.
+    "none" makes the app refuse rather than present an unverified answer.
     """
-    assert apply_missing_field_policy({"confidence": value}, FULL)["confidence"] == "none"
+    assert normalise_confidence(value) == "none"
 
 
-# --- No context at all ---------------------------------------------------
+# --- provenance comes from the corpus ------------------------------------
 
-def test_empty_card_is_fully_marked_and_never_null():
-    card = empty_card()
-    for f in CARD_FIELDS:
-        assert card[f.key] == NOT_IN_SOURCE
-    assert card["confidence"] == "none"
-    assert card["source_url"] is None
+def test_source_is_taken_from_the_chunk():
+    meta = metadata_from([chunk()])
+    assert meta["source_url"] == "https://www.rop.gov.om/passport"
+    assert meta["authority"] == "شرطة عمان السلطانية"
 
 
-def test_policy_with_no_chunks_marks_everything():
-    card = apply_missing_field_policy({"fees": "٢٠ ريالاً"}, [])
-    assert card["fees"] == NOT_IN_SOURCE
-    assert card["confidence"] == "none"
+def test_no_chunks_yields_empty_provenance_not_invented():
+    meta = metadata_from([])
+    assert meta["source_url"] is None
+    assert meta["sources"] == []
 
 
-# --- The corpus contract ties the two together ---------------------------
+# --- multi-source: the point of the change -------------------------------
 
-def test_card_sections_match_the_corpus_spec_headings():
+def test_one_service_many_sections_is_cited_once():
     """
-    Every card field names a '##' heading the corpus is contracted to
-    provide. If these drift apart, whole-service loading silently stops
-    filling fields and every answer quietly degrades.
+    Whole-service retrieval returns six chunks of the same file. Citing it
+    six times would be noise, not rigour.
     """
-    expected = {"الفئة المستهدفة", "المستندات المطلوبة", "الخطوات",
-                "الرسوم", "المدة المتوقعة", "أين تتم المعاملة"}
-    assert {f.section_ar for f in CARD_FIELDS} == expected
+    chunks = [chunk(section=s) for s in
+              ("الرسوم", "الخطوات", "المستندات المطلوبة", "الفئة المستهدفة")]
+    assert len(sources_from(chunks)) == 1
+
+
+def test_two_services_keep_both_citations():
+    """
+    «كم رسوم تجديد الجواز ورخصة السياقة؟» is legitimately answered from two
+    files, and the citizen is owed both citations.
+    """
+    chunks = [
+        chunk(service="تجديد جواز السفر", url="https://www.rop.gov.om/passport"),
+        chunk(service="تجديد رخصة السياقة", url="https://www.rop.gov.om/licence"),
+    ]
+    sources = sources_from(chunks)
+    assert len(sources) == 2
+    assert {s["service"] for s in sources} == {"تجديد جواز السفر", "تجديد رخصة السياقة"}
+
+
+def test_sources_keep_best_match_order():
+    """First-seen order = retrieval order, so the primary source leads."""
+    chunks = [chunk(service="أ", url="https://a.gov.om"),
+              chunk(service="ب", url="https://b.gov.om")]
+    assert [s["service"] for s in sources_from(chunks)] == ["أ", "ب"]
+    assert metadata_from(chunks)["service_name"] == "أ"
+
+
+# --- textual attribution, for material with no live URL ------------------
+
+def test_source_without_url_still_attributes_via_text():
+    """
+    A printed services guide or a PDF page has no clickable link. Honest
+    attribution does not require one — it requires being present.
+    """
+    c = chunk(url=None, title=None, ref="دليل خدمات وزارة الداخلية، ص ١٤")
+    source = sources_from([c])[0]
+    assert source["url"] is None
+    assert source["ref"] == "دليل خدمات وزارة الداخلية، ص ١٤"
+
+
+def test_source_title_is_the_fallback_ref():
+    source = sources_from([chunk(url=None, title="دليل الخدمات")])[0]
+    assert source["ref"] == "دليل الخدمات"
+
+
+def test_chunk_with_no_provenance_at_all_is_skipped():
+    """An entry with nothing to cite must not produce an empty citation row."""
+    assert sources_from([{"text": "نص", "section": "الرسوم"}]) == []

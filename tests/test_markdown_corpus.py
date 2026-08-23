@@ -119,6 +119,64 @@ def test_source_url_must_be_a_real_url():
         validate_front_matter(meta, "test.md")
 
 
+# --- Provenance: a URL, a text reference, or the build fails -------------
+# source_url stopped being mandatory when PDF-sourced content arrived: OCR
+# of the ministry guides recovered a usable URL for 0 of 97 services, and
+# the source PDFs are gone. Requiring one there would mean either dropping
+# the content or inventing links.
+
+def _meta(**overrides):
+    meta = {f: "x" for f in (
+        "authority", "authority_en", "service",
+        "source_title", "retrieved", "verified_by")}
+    meta["service_id"] = "test"          # must equal the filename stem
+    meta.update(overrides)
+    return meta
+
+
+def test_a_text_reference_is_acceptable_provenance():
+    """A printed guide has no link and is still a checkable citation."""
+    meta = _meta(service_id="mol-03",
+                 source_ref="دليل الخدمات الحكومية — وزارة العمل، ص ٥")
+    assert validate_front_matter(meta, "mol-03.md") is meta
+
+
+def test_a_file_with_no_provenance_at_all_is_rejected():
+    """
+    An answer whose provenance row is blank reads as "Daleel made this up",
+    and would be indistinguishable from one that did.
+    """
+    with pytest.raises(CorpusError, match="provenance"):
+        validate_front_matter(_meta(), "test.md")
+
+
+def test_a_url_alone_is_still_acceptable():
+    """The 27 hand-curated files predate source_ref and must keep loading."""
+    meta = _meta(source_url="https://www.rop.gov.om/passport")
+    assert validate_front_matter(meta, "test.md") is meta
+
+
+def test_a_bad_url_still_fails_even_when_a_ref_is_present():
+    """
+    Relaxing the requirement must not relax the format. A malformed URL is a
+    mistake whether or not something else could be cited instead.
+    """
+    with pytest.raises(CorpusError, match="source_url"):
+        validate_front_matter(
+            _meta(source_url="rop.gov.om", source_ref="دليل، ص ٥"), "test.md")
+
+
+def test_chunks_carry_the_text_reference(tmp_path):
+    """card.py renders source_ref, so the loader has to emit it."""
+    doc = GOOD.replace(
+        "source_url: https://www.rop.gov.om/services/passport",
+        "source_ref: دليل الخدمات الحكومية — وزارة العمل، ص ٥")
+    chunks = load_file(write(tmp_path, doc))
+    assert all(c["source_ref"] == "دليل الخدمات الحكومية — وزارة العمل، ص ٥"
+               for c in chunks)
+    assert all(c["source_url"] is None for c in chunks)
+
+
 def test_missing_front_matter_is_a_named_error(tmp_path):
     with pytest.raises(CorpusError, match="front-matter"):
         load_file(write(tmp_path, "# عنوان\n\n## قسم\nنص"))

@@ -14,7 +14,6 @@ three times reads as broken, not intelligent.
 import pytest
 
 from chatbot import app as app_module
-from chatbot.agent.card import NOT_IN_SOURCE
 
 
 @pytest.fixture
@@ -28,21 +27,21 @@ def client():
 
 @pytest.fixture(autouse=True)
 def fake_generation(monkeypatch):
-    """A well-formed grounded card, unless a test overrides it."""
+    """A well-formed grounded answer, unless a test overrides it."""
     def fake(question, chunks, history=None, model=None):
         return {
-            "format": "card",
-            "eligibility": "المواطنون العمانيون",
-            "required_documents": ["البطاقة الشخصية"],
-            "steps": ["الخطوة الأولى"],
-            "fees": "عشرون ريالاً عمانياً",
-            "estimated_time": "ثلاثة أيام",
-            "where": "إلكترونياً",
+            "format": "answer",
+            "answer": "رسوم تجديد الجواز عشرون ريالاً عمانياً.",
             "confidence": "high",
             "service_name": chunks[0].get("service"),
             "authority": chunks[0].get("authority"),
             "source_url": chunks[0].get("source_url"),
             "source_title": chunks[0].get("source_title"),
+            "sources": [{"service": chunks[0].get("service"),
+                         "authority": chunks[0].get("authority"),
+                         "url": chunks[0].get("source_url"),
+                         "title": chunks[0].get("source_title"),
+                         "ref": chunks[0].get("source_title")}],
             "_served_by": "gemini-3.6-flash",
         }
     monkeypatch.setattr(app_module, "generate_answer", fake)
@@ -56,12 +55,12 @@ def ask(client, text, **extra):
 
 # --- The four shapes -----------------------------------------------------
 
-def test_grounded_question_returns_a_card(client):
+def test_grounded_question_returns_an_answer(client):
     data = ask(client, "كيف أجدد جواز سفري؟")
-    assert data["format"] == "card"
-    assert data["strategy"] == "whole_service"
-    assert data["fees"] == "عشرون ريالاً عمانياً"
+    assert data["format"] == "answer"
+    assert "عشرون" in data["answer"]
     assert data["source_url"]
+    assert data["sources"]
 
 
 def test_uncovered_authority_returns_a_refusal_not_an_empty_card(client):
@@ -70,11 +69,11 @@ def test_uncovered_authority_returns_a_refusal_not_an_empty_card(client):
     differently, and a citizen reading empty rows would think the service
     has no fees rather than that Daleel has no information.
     """
-    data = ask(client, "أريد شكوى في وزارة العمل")
+    data = ask(client, "أريد شكوى في وزارة الخارجية")
     assert data["format"] == "refusal"
     assert data["reason"] == "uncovered_authority"
-    assert "وزارة العمل" in data["reply"]
-    assert "fees" not in data
+    assert "وزارة الخارجية" in data["reply"]
+    assert "answer" not in data
 
 
 def test_ambiguous_question_returns_tappable_options(client):
@@ -93,8 +92,8 @@ def test_l3_none_becomes_a_refusal(client, monkeypatch):
     the honest rendering is a refusal.
     """
     monkeypatch.setattr(app_module, "generate_answer",
-                        lambda *a, **k: {"format": "card", "confidence": "none",
-                                         "_served_by": "m"})
+                        lambda *a, **k: {"format": "answer", "answer": "لا شيء",
+                                         "confidence": "none", "_served_by": "m"})
     data = ask(client, "كيف أجدد جواز سفري؟")
     assert data["format"] == "refusal"
     assert data["reason"] == "ungrounded"
@@ -106,7 +105,7 @@ def test_tapping_an_option_goes_straight_to_that_service(client):
     """The citizen's tap is an answer, not a hint. No re-classification."""
     data = ask(client, "تجديد جواز سفر قائم",
                service_id="rop-passport-renewal", clarify_count=1)
-    assert data["format"] == "card"
+    assert data["format"] == "answer"
     assert data["strategy"] == "whole_service"
 
 
@@ -116,7 +115,7 @@ def test_second_ambiguous_question_does_not_clarify_again(client):
     """
     data = ask(client, "أريد جواز سفر", clarify_count=1)
     assert data["format"] != "clarify"
-    assert data["format"] == "card"
+    assert data["format"] == "answer"
 
 
 def test_spent_budget_loads_every_candidate_not_just_the_first(client, monkeypatch):
@@ -139,7 +138,8 @@ def test_spent_budget_loads_every_candidate_not_just_the_first(client, monkeypat
 
     def capture(question, chunks, history=None, model=None):
         seen["service_ids"] = {c.get("service_id") for c in chunks}
-        return {"format": "card", "confidence": "high", "_served_by": "m"}
+        return {"format": "answer", "answer": "نص", "confidence": "high",
+                "_served_by": "m"}
 
     monkeypatch.setattr(app_module, "generate_answer", capture)
     ask(client, "أريد جواز سفر", clarify_count=1)
@@ -155,7 +155,58 @@ def test_the_limit_is_server_side_not_client_side(client):
     first = ask(client, "أريد جواز سفر", clarify_count=0)
     second = ask(client, "أريد جواز سفر", clarify_count=1)
     assert first["format"] == "clarify"
-    assert second["format"] == "card"
+    assert second["format"] == "answer"
+
+
+# --- Follow-up questions -------------------------------------------------
+
+def test_a_follow_up_is_answered_from_the_previous_service(client, monkeypatch):
+    """
+    The wiring test. The router only sees history if app.py passes it, and
+    the symptom of forgetting to is not an error — it is a clarification
+    about an unrelated service, one turn after a correct answer.
+
+    Runs against the REAL corpus: «وكم رسومها؟» carries no service words at
+    all, so anything it grounds in came from the previous turn.
+    """
+    seen = {}
+
+    def capture(question, chunks, history=None, model=None):
+        seen["services"] = {c.get("service_id") for c in chunks}
+        return {"format": "answer", "answer": "خمسة ريالات",
+                "confidence": "high", "_served_by": "m"}
+
+    monkeypatch.setattr(app_module, "generate_answer", capture)
+    data = client.post("/chat", json={"history": [
+        {"role": "user", "content": "كيف أجدد جواز سفري؟"},
+        {"role": "assistant", "content": "..."},
+        {"role": "user", "content": "وكم رسومها؟"},
+    ]}).get_json()
+
+    assert data["format"] == "answer"
+    assert "rop-passport-renewal" in seen["services"]
+
+
+def test_the_current_question_is_not_double_classified(client, monkeypatch):
+    """
+    app.py passes history[:-1]; the last entry IS the current question and
+    is passed separately. Sending the whole list would have the router
+    classify the same text twice — harmless here, but it would make a
+    first-ever question look like a follow-up to itself.
+    """
+    captured = {}
+
+    def spy_plan(question, *, service_id=None, allow_clarify=True, history=None):
+        captured["question"] = question
+        captured["history"] = history
+        from chatbot.agent.router import plan_and_gather as real
+        return real(question, service_id=service_id,
+                    allow_clarify=allow_clarify, history=history)
+
+    monkeypatch.setattr(app_module, "plan_and_gather", spy_plan)
+    ask(client, "كيف أجدد جواز سفري؟")
+    assert captured["question"] == "كيف أجدد جواز سفري؟"
+    assert captured["history"] == []
 
 
 # --- Failover visibility -------------------------------------------------
@@ -200,7 +251,7 @@ def test_refusal_and_clarify_never_call_the_model(client, monkeypatch):
     def explode(*a, **k):
         raise AssertionError("generation must not run for this strategy")
     monkeypatch.setattr(app_module, "generate_answer", explode)
-    assert ask(client, "أريد شكوى في وزارة العمل")["format"] == "refusal"
+    assert ask(client, "أريد شكوى في وزارة الخارجية")["format"] == "refusal"
     assert ask(client, "أريد جواز سفر")["format"] == "clarify"
 
 
@@ -209,6 +260,10 @@ def test_refusal_and_clarify_never_call_the_model(client, monkeypatch):
 def test_healthz_reports_coverage_and_models(client):
     data = client.get("/healthz").get_json()
     assert data["status"] == "ok"
-    assert data["coverage"]["authority_count"] == 10
-    assert data["coverage"]["service_count"] == 26
+    # Floors rather than exact counts — the corpus grows with each import,
+    # and the exact figures are asserted against the registry itself in
+    # test_registry.py. What matters here is that /healthz reports real
+    # coverage rather than zeros.
+    assert data["coverage"]["authority_count"] >= 10
+    assert data["coverage"]["service_count"] >= 26
     assert isinstance(data["models_available"], list)

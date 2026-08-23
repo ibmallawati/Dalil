@@ -178,7 +178,15 @@ def load_settings() -> Settings:
     # use any placeholder string in that case.)
     llm_api_key = os.environ.get("LLM_API_KEY")
     if not llm_api_key:
-        raise RuntimeError("LLM_API_KEY is missing. Copy '.env.example' to '.env'.")
+        # Named for BOTH places this runs. Deployed, there is no .env file to
+        # copy, and being told to make one sends you looking for a filesystem
+        # fix to what is actually a dashboard setting.
+        raise RuntimeError(
+            "LLM_API_KEY is missing.\n"
+            "  Local:  copy '.env.example' to '.env' and fill it in.\n"
+            "  Hugging Face Spaces:  Settings -> Variables and secrets -> "
+            "New secret, named LLM_API_KEY.\n"
+            "  (A Space SECRET, not a variable — variables are public.)")
 
     default_db = DATA_DIR / "databases" / "omantel_demo.db"
     db_paths_raw = os.environ.get("DB_PATHS", str(default_db))

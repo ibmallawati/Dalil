@@ -74,8 +74,8 @@ def test_longest_variant_wins():
 # --- UNCOVERED_AUTHORITY: the only verdict that refuses without retrieving
 
 @pytest.mark.parametrize("question,expected_ar", [
-    ("ما هي إجراءات التسجيل في وزارة التربية والتعليم؟", "وزارة التربية والتعليم"),
-    ("أريد الاستفسار عن وزارة العمل", "وزارة العمل"),
+    ("ما هي إجراءات التسجيل في بلدية مسقط؟", "بلدية مسقط"),
+    ("أريد الاستفسار عن وزارة الخارجية", "وزارة الخارجية"),
     ("كيف أتواصل مع بلدية مسقط؟", "بلدية مسقط"),
 ])
 def test_known_but_uncovered_authorities_refuse_immediately(question, expected_ar):
@@ -86,9 +86,9 @@ def test_known_but_uncovered_authorities_refuse_immediately(question, expected_a
 
 
 def test_uncovered_message_names_the_authority_and_states_coverage():
-    match = classify("وزارة العمل")
+    match = classify("وزارة الخارجية")
     msg = uncovered_authority_message(match)
-    assert "وزارة العمل" in msg
+    assert "وزارة الخارجية" in msg
     assert "قريبًا" in msg
     # The refusal must also say what Daleel CAN do, or it is a dead end.
     assert "شرطة عمان السلطانية" in msg
@@ -127,7 +127,7 @@ def test_the_two_refusals_say_different_things():
     distinct rather than collapsing both into a generic apology.
     """
     covered = classify("كيف أجدد جواز سفري؟")
-    uncovered = classify("وزارة العمل")
+    uncovered = classify("وزارة الخارجية")
 
     path_1 = unknown_service_message(covered)
     path_2 = uncovered_authority_message(uncovered)
@@ -140,16 +140,52 @@ def test_the_two_refusals_say_different_things():
 # --- The claim made to the panel -----------------------------------------
 
 def test_coverage_summary_reports_scope():
+    """
+    Checked against the registry file itself rather than against numbers
+    written here. The counts moved 10->18 and 26->93 with the OCR import,
+    and a test that must be hand-edited on every import is a test that gets
+    edited without being read.
+
+    What still cannot drift: the summary must describe the registry, and the
+    corpus must not silently shrink.
+    """
+    import json
+
+    from chatbot.config import DATA_DIR
+
+    registry = json.loads(
+        (DATA_DIR / "registry" / "authorities.json").read_text(encoding="utf-8"))
+
     summary = coverage_summary()
-    assert summary["authority_count"] == 10
-    # 26 after the 3 Aug PDF import added six ministries (Interior,
-    # Finance, Social Development, Energy & Minerals, Heritage & Tourism,
-    # Endowments) plus two MoCIIP services.
-    assert summary["service_count"] == 26
+    assert summary["authority_count"] == len(registry["covered"])
+    assert summary["service_count"] == sum(
+        len(a["services"]) for a in registry["covered"])
+    assert summary["known_uncovered_count"] == len(registry["not_covered"])
+    assert {a["id"] for a in summary["authorities"]} == {
+        a["id"] for a in registry["covered"]}
+
+    # Floors, not equalities — a canary for accidental corpus loss.
+    assert summary["authority_count"] >= 10
+    assert summary["service_count"] >= 26
     assert summary["known_uncovered_count"] > 0
-    ids = {a["id"] for a in summary["authorities"]}
-    assert ids == {"rop", "mociip", "moh", "mohup",
-                   "moi", "mof", "mosd", "mem", "mht", "mara"}
+
+
+def test_no_authority_is_both_covered_and_uncovered():
+    """
+    The OCR import promoted six ministries out of not_covered. Leaving a
+    name in both lists would let the uncovered check fire on an authority
+    the corpus now covers — an instant refusal for a question Daleel can
+    answer, and invisible unless something asserts it.
+    """
+    import json
+
+    from chatbot.config import DATA_DIR
+
+    registry = json.loads(
+        (DATA_DIR / "registry" / "authorities.json").read_text(encoding="utf-8"))
+    covered = {a["name_ar"] for a in registry["covered"]}
+    uncovered = {a["name_ar"] for a in registry["not_covered"]}
+    assert covered & uncovered == set()
 
 
 def test_registry_service_ids_match_the_corpus_spec_naming():

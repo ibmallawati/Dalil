@@ -1,17 +1,40 @@
 """
-ocr_extract.py -- hybrid OCR component (Phase 6)
+ocr.py -- PDF pages to text, via Tesseract.
 
-For each PDF page:
-  1. try pypdf text-layer extraction (fast, accurate, free)
-  2. if that text is empty / too short, the page is probably a scan
-  3. render the page to an image and run Tesseract (eng+ara)
+EVERY page is rendered to an image and OCR'd. A PDF's embedded text layer is
+never read, even when it has a perfectly good one.
 
-Runs at INDEX-BUILD time only (inside build_index.py). Tesseract and poppler
-never ship to Render.
+Runs at INDEX-BUILD time only. Tesseract and poppler never ship to Render.
 
-Local system dependencies (install on the build machine, NOT in the Dockerfile):
+--- Why the text layer is ignored ----------------------------------------
+
+Reading it is faster, and for these documents it was wrong. pypdf returned
+Arabic in which U+064B (fathatan) stood in for the space character --
+measured 4,663 fathatan against 3,721 real spaces. That text is long, so any
+"does this page have text?" check passes it. D3 normalisation then strips
+tashkeel by design and every word in the document fuses together. No
+exception, no warning, just degraded retrieval.
+
+This module previously detected that case and fell back to OCR per page.
+It worked, but it meant two extraction paths and a heuristic choosing
+between them -- and the heuristic was wrong on its first version, flagging
+vocalised Arabic («بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ») as corrupt because
+genuine vocalisation carries more diacritics than spaces.
+
+One path cannot silently pick the wrong one. Whatever needs correcting is
+corrected in ONE place downstream -- the cleaner in docs/PDF_INTAKE_SPEC.md
+-- rather than split between a detector here and a cleaner there.
+
+Cost, stated plainly: slower, and a page that genuinely had good digital
+text is re-derived from an image, so it can pick up an OCR error it would
+not otherwise have had. Acceptable because these documents are
+overwhelmingly scans, and because the alternative is a silent corruption
+that is much harder to notice than a visible OCR typo.
+
+Local system dependencies (build machine only, NOT the Dockerfile):
   Debian/Ubuntu: sudo apt install tesseract-ocr tesseract-ocr-eng tesseract-ocr-ara poppler-utils
   macOS:         brew install tesseract tesseract-lang poppler
+  Windows:       winget install UB-Mannheim.TesseractOCR oschwartz10612.Poppler
 
 Python deps (build-only, see requirements-build.txt): pytesseract, pdf2image
 """
@@ -19,18 +42,22 @@ from pypdf import PdfReader
 from pdf2image import convert_from_path
 import pytesseract
 
-# Below this many non-space chars, treat a page as "no text layer" -> OCR it.
-MIN_CHARS = 20
 OCR_LANG = "eng+ara"   # languages Tesseract loads
-OCR_DPI = 300          # render resolution for scanned pages (300 = OCR sweet spot)
+OCR_DPI = 300          # render resolution (300 = OCR sweet spot)
 
 
-def _pypdf_text(pdf_path, page_index):
-    reader = PdfReader(pdf_path)
-    return (reader.pages[page_index].extract_text() or "").strip()
+def _page_count(pdf_path):
+    """pypdf is used ONLY to count pages -- never to read text."""
+    return len(PdfReader(pdf_path).pages)
 
 
 def _ocr_text(pdf_path, page_index):
+    """
+    Render one page and OCR it.
+
+    Rendered one page at a time on purpose: a 300-DPI bitmap of a whole
+    document held in memory at once is how this falls over on a long PDF.
+    """
     images = convert_from_path(
         pdf_path, dpi=OCR_DPI,
         first_page=page_index + 1, last_page=page_index + 1,  # 1-based
@@ -40,26 +67,20 @@ def _ocr_text(pdf_path, page_index):
     return pytesseract.image_to_string(images[0], lang=OCR_LANG).strip()
 
 
-def _looks_empty(text):
-    return len(text.replace(" ", "").replace("\n", "")) < MIN_CHARS
-
-
-def extract_text_hybrid(pdf_path, verbose=True):
+def extract_text(pdf_path, verbose=True):
     """
-    Returns a list of per-page dicts: {page, source, chars, text}
-    source is 'text_layer' or 'ocr'.
+    OCR every page. Returns a list of {page, chars, text}, page 1-based.
+
+    A page that yields nothing is kept as an empty record rather than
+    dropped, so page numbers stay aligned with the document -- citations
+    built from them have to point at the right page.
     """
-    reader = PdfReader(pdf_path)
+    total = _page_count(pdf_path)
     results = []
-    for i in range(len(reader.pages)):
-        text = _pypdf_text(pdf_path, i)
-        source = "text_layer"
-        if _looks_empty(text):
-            ocr = _ocr_text(pdf_path, i)
-            if len(ocr) > len(text):
-                text, source = ocr, "ocr"
-        results.append({"page": i + 1, "source": source,
-                        "chars": len(text), "text": text})
+    for i in range(total):
+        text = _ocr_text(pdf_path, i)
+        results.append({"page": i + 1, "chars": len(text), "text": text})
         if verbose:
-            print(f"  page {i+1}: {source:10s} ({len(text)} chars)")
+            blank = "  <- no text found" if not text else ""
+            print(f"  page {i + 1}/{total}: {len(text)} chars{blank}")
     return results

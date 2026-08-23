@@ -26,19 +26,9 @@ let busy = false;
 // anything different afterwards means we have fallen down the chain.
 let primaryModel = null;
 
-const FIELD_LABELS = {
-  eligibility: "الفئة المستهدفة",
-  required_documents: "المستندات المطلوبة",
-  steps: "الخطوات",
-  fees: "الرسوم",
-  estimated_time: "المدة المتوقعة",
-  where: "أين تتم المعاملة",
-};
-const ORDERED_FIELDS = [
-  "eligibility", "required_documents", "steps",
-  "fees", "estimated_time", "where",
-];
-const NOT_IN_SOURCE = "غير محدد في المصدر";
+// The answer is free-form now: no fixed field list, no «غير محدد» padding.
+// The model returns Arabic text in a narrow markdown subset and the shape
+// follows the question — a fee question gets a fee, not six sections.
 const CONF_LABEL = { high: "معلومات مؤكدة", partial: "معلومات جزئية" };
 const NETWORK_ERROR = "تعذّر الاتصال بالخادم. تأكد من تشغيله ثم أعد المحاولة.";
 
@@ -100,26 +90,54 @@ function updateServedBy(model) {
       : "نموذج احتياطي — تم التبديل تلقائياً";
 }
 
-function renderField(key, value) {
-  const wrap = el("div", "field");
-  wrap.appendChild(el("div", "field__label", FIELD_LABELS[key]));
-  const body = el("div", "field__value");
+// --- markdown subset -----------------------------------------------------
+// The model may emit "- item", "1. step", and **bold**. Everything is built
+// as real DOM nodes, never innerHTML: the text is model output and must not
+// be able to inject markup. A full markdown library would be a dependency
+// for three constructs, and this project is kept deliberately small.
 
-  // An unsupported field is styled as a statement about the source rather
-  // than as content. Dropping the row entirely would be worse: a checklist
-  // with no «الرسوم» line reads as "this service is free".
-  if (value === NOT_IN_SOURCE || value === null || value === undefined) {
-    body.classList.add("field__value--missing");
-    body.textContent = NOT_IN_SOURCE;
-  } else if (Array.isArray(value)) {
-    const list = el(key === "steps" ? "ol" : "ul");
-    value.forEach((item) => list.appendChild(el("li", null, item)));
-    body.appendChild(list);
-  } else {
-    body.textContent = value;
-  }
+function appendInline(parent, text) {
+  // Split on **bold** and emit alternating text / <strong> nodes.
+  const parts = String(text).split(/\*\*(.+?)\*\*/g);
+  parts.forEach((part, i) => {
+    if (!part) return;
+    if (i % 2 === 1) parent.appendChild(el("strong", null, part));
+    else parent.appendChild(document.createTextNode(part));
+  });
+}
 
-  wrap.appendChild(body);
+function renderMarkdown(text) {
+  const wrap = el("div", "answer__body");
+  const lines = String(text || "").split("\n");
+  let list = null;
+
+  const closeList = () => { list = null; };
+
+  lines.forEach((raw) => {
+    const line = raw.trim();
+    if (!line) { closeList(); return; }
+
+    const bullet = line.match(/^[-•*]\s+(.*)$/);
+    const numbered = line.match(/^(\d+)[.)]\s+(.*)$/);
+
+    if (bullet || numbered) {
+      const wantTag = numbered ? "ol" : "ul";
+      if (!list || list.tagName.toLowerCase() !== wantTag) {
+        list = el(wantTag, "answer__list");
+        wrap.appendChild(list);
+      }
+      const li = el("li");
+      appendInline(li, (bullet ? bullet[1] : numbered[2]));
+      list.appendChild(li);
+      return;
+    }
+
+    closeList();
+    const p = el("p", "answer__p");
+    appendInline(p, line);
+    wrap.appendChild(p);
+  });
+
   return wrap;
 }
 
@@ -147,20 +165,47 @@ function sourceBadge(url) {
   return badge;
 }
 
-function sourceLine(data) {
-  const src = el("div", "card__source");
-  const flag = sourceBadge(data.source_url);
-  if (flag) src.appendChild(flag);
-  src.appendChild(el("span", null, "المصدر: "));
-  const link = el("a", null, data.source_title || data.source_url);
-  link.href = data.source_url;
-  link.target = "_blank";
-  link.rel = "noopener noreferrer";
-  src.appendChild(link);
-  return src;
+function sourcesBlock(data) {
+  // Retrieval can span several services, so an answer can legitimately have
+  // more than one citation. Rendered as a list rather than a single line.
+  const list = (data.sources && data.sources.length)
+    ? data.sources
+    : (data.source_url || data.source_title
+        ? [{ url: data.source_url, title: data.source_title,
+             ref: data.source_title, service: data.service_name,
+             authority: data.authority }]
+        : []);
+  if (!list.length) return null;
+
+  const box = el("div", "card__source");
+  box.appendChild(el("div", "card__source-label",
+    list.length > 1 ? "المصادر:" : "المصدر:"));
+
+  list.forEach((src) => {
+    const row = el("div", "card__source-row");
+    const flag = sourceBadge(src.url);
+    if (flag) row.appendChild(flag);
+
+    const label = [src.authority, src.service].filter(Boolean).join(" — ")
+      || src.title || src.ref || src.url;
+
+    if (src.url) {
+      const link = el("a", null, label);
+      link.href = src.url;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      row.appendChild(link);
+    } else {
+      // Textual attribution: a printed guide or a PDF with no live page.
+      // Not clickable, still honest about where the answer came from.
+      row.appendChild(el("span", "card__source-ref", label));
+    }
+    box.appendChild(row);
+  });
+  return box;
 }
 
-function renderCard(node, data) {
+function renderAnswer(node, data) {
   node.innerHTML = "";
   const card = el("div", "card");
 
@@ -170,14 +215,15 @@ function renderCard(node, data) {
   if (data.confidence && CONF_LABEL[data.confidence]) {
     head.appendChild(el("span", "conf conf--" + data.confidence, CONF_LABEL[data.confidence]));
   }
-  card.appendChild(head);
+  if (head.childNodes.length) card.appendChild(head);
 
-  ORDERED_FIELDS.forEach((key) => card.appendChild(renderField(key, data[key])));
+  card.appendChild(renderMarkdown(data.answer));
 
   // Every answer carries its source. This is the visible half of "how do
-  // you know it isn't hallucinating" — and the URL comes from the corpus,
-  // never from the model.
-  if (data.source_url) card.appendChild(sourceLine(data));
+  // you know it isn't hallucinating" — and it comes from the corpus, never
+  // from the model.
+  const sources = sourcesBlock(data);
+  if (sources) card.appendChild(sources);
 
   node.appendChild(card);
 }
@@ -204,8 +250,8 @@ function renderClarify(node, data) {
 function renderReply(node, data) {
   node.classList.remove("msg--refusal");
 
-  if (data.format === "card") {
-    renderCard(node, data);
+  if (data.format === "answer" || data.format === "card") {
+    renderAnswer(node, data);
   } else if (data.format === "clarify") {
     clarifyCount += 1;
     renderClarify(node, data);
@@ -214,7 +260,10 @@ function renderReply(node, data) {
     node.innerHTML = "";
     if (data.format === "refusal") node.classList.add("msg--refusal");
     node.appendChild(el("div", "msg__text", data.reply || data.text || ""));
-    if (data.format === "prose" && data.source_url) node.appendChild(sourceLine(data));
+    if (data.format === "prose") {
+      const sources = sourcesBlock(data);
+      if (sources) node.appendChild(sources);
+    }
   }
 
   if (typeof data.answer_time === "number") {
