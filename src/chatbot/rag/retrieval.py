@@ -1,43 +1,68 @@
 """
-Retrieval module — LOCAL embeddings, prebuilt index, no network.
+Retrieval module — prebuilt index, pluggable embedding backend.
 
---- What changed, and why -------------------------------------------------
+Two things happen here. The SEARCH is always local: precomputed vectors are
+loaded once at startup and compared with one matrix multiply, so the corpus
+never leaves the machine. Only the act of turning text INTO a vector is
+pluggable.
 
-This module used to call a remote embedding API so the deployed container
-could stay small enough for a free host. Hosting is no longer a constraint,
-and the project runs under a hard $0 budget, so the model now runs
-IN-PROCESS via sentence-transformers at both index-build time and query
-time.
+    embed_query(...)     -> use for questions
+    embed_passages(...)  -> use for corpus text (build_index.py)
 
-The consequence is the point: the retrieval path never touches the network.
-It cannot rate-limit, cannot time out, cannot fail because a token expired
-the morning of a demo. The only remote call left in the whole request is
-generation.
+Every caller uses those two. Neither knows or cares which backend is behind
+them, which is what made swapping backends a contained change.
 
-The prebuilt index is still prebuilt (scripts/build_index.py -> npy+json).
-Loading precomputed vectors keeps startup fast; only the QUERY is embedded
-at request time.
+--- Why the default is no longer in-process -------------------------------
 
---- E5 prefixes: the thing that breaks silently ---------------------------
+It used to be. Running e5-base locally meant retrieval could not rate-limit,
+could not time out, and could not fail on an expired token — a genuinely
+valuable property, and the reason it was chosen.
 
-intfloat/multilingual-e5-* is an asymmetric model. It was trained with
-literal prefixes and expects them:
+It was given up for one measured reason. On this machine:
+
+    app with the index loaded, no model .......    87 MB
+    after e5-base loads .......................   792 MB
+    peak while embedding one question .........  1,143 MB
+
+The model is 705 MB of that. Free hosts offer 512 MB; none offer 1.2 GB. So
+the choice was between in-process embeddings and being deployed at all.
+
+What that costs is stated plainly, because it is a real regression: the
+retrieval path now depends on the network. It can rate-limit and it can
+time out. Generation already could, and has a failover chain for it;
+retrieval does not yet.
+
+--- The backends ----------------------------------------------------------
+
+gemini  (default)  Embeds over the same OpenAI-compatible endpoint used for
+                   generation, so no second credential. Vectors are
+                   requested at settings.embed_dim and RE-NORMALISED, which
+                   is not optional — see _embed_gemini.
+
+local              intfloat/multilingual-e5-base, in-process. Needs
+                   `pip install sentence-transformers`, deliberately absent
+                   from requirements.txt. Kept because every retrieval
+                   threshold in this project was tuned against it, so it is
+                   the baseline any new backend has to be compared with.
+
+--- E5 prefixes: local-only, and silent when wrong ------------------------
+
+intfloat/multilingual-e5-* is asymmetric. It was trained with literal
+prefixes and expects them:
 
     documents -> "passage: <text>"
     questions -> "query: <text>"
 
-Omitting them raises nothing. It just quietly costs retrieval quality, and
-it would do so AFTER D2 has set a threshold and D7 has produced an accuracy
-number — corrupting both without a single error in the logs. That is why
-the prefixes are applied here, inside the only two functions anyone is
-supposed to call, rather than left to each caller to remember.
-
-    embed_query(...)     -> use for questions
-    embed_passages(...)  -> use for corpus text (build_index.py)
+Omitting them raises nothing; it quietly costs retrieval quality. They are
+applied inside the two functions above rather than left to callers to
+remember. They apply ONLY to the local backend — Gemini was not trained
+with them, and adding them there would embed the literal English word
+"query" into every Arabic question.
 """
 
 import json
 import logging
+import re
 
 import numpy as np
 
@@ -47,6 +72,10 @@ from chatbot.rag.arabic import normalize_arabic
 logger = logging.getLogger(__name__)
 
 # E5's required asymmetric prefixes. Not stylistic — part of the model.
+# How many texts go in one embeddings request. Only the index build ever
+# exceeds this; a question is always a batch of one.
+EMBED_BATCH = 100
+
 QUERY_PREFIX = "query: "
 PASSAGE_PREFIX = "passage: "
 
@@ -57,13 +86,22 @@ def get_model():
     """
     Load the sentence-transformers model once, on first use.
 
-    Lazy rather than at import: the weights are hundreds of MB, and
-    importing this module must stay cheap for tests, scripts and tooling
-    that only want retrieve()'s helpers or the loaded chunk metadata.
+    Only reachable with EMBED_BACKEND=local. Lazy rather than at import:
+    the weights are hundreds of MB, and importing this module must stay
+    cheap for tests, scripts and tooling that only want retrieve()'s
+    helpers or the loaded chunk metadata.
     """
     global _model
     if _model is None:
-        from sentence_transformers import SentenceTransformer
+        try:
+            from sentence_transformers import SentenceTransformer
+        except ImportError as exc:      # pragma: no cover - install-time path
+            raise RuntimeError(
+                "EMBED_BACKEND=local needs sentence-transformers, which is no "
+                "longer in requirements.txt because it pulls in ~750 MB of "
+                "torch. Install it explicitly to use the local backend:\n"
+                "    pip install sentence-transformers"
+            ) from exc
 
         logger.info("embedding_model_loading", extra={"model": settings.embed_model})
         _model = SentenceTransformer(settings.embed_model)
@@ -85,14 +123,120 @@ def get_model():
     return _model
 
 
-def _encode(texts, prefix):
+def _l2_normalise(vectors):
     """
-    Normalize (D3) -> prefix (E5) -> encode -> L2-normalize.
+    Scale every row to unit length.
 
-    normalize_embeddings=True means a dot product IS cosine similarity, so
-    retrieve() can use a single matrix multiply instead of dividing by norms
-    on every request.
+    retrieve() treats a dot product AS cosine similarity, which is only true
+    for unit vectors. Every threshold in this project — the D2 similarity
+    floor, the ambiguity margin — is a number on that scale, so a vector
+    that is not unit length rescales all of them at once, silently.
     """
+    norms = np.linalg.norm(vectors, axis=1, keepdims=True)
+    # A zero vector cannot be normalised; leave it rather than divide by 0.
+    np.divide(vectors, norms, out=vectors, where=norms > 0)
+    return vectors
+
+
+_RETRY_AFTER = re.compile(r"retry in ([\d.]+)s", re.IGNORECASE)
+
+
+def _embed_request(prepared):
+    """
+    One embeddings call, retried when the free tier's per-minute cap trips.
+
+    The cap is 100 embed requests per minute, and the index build spends
+    that in a single batch — so a 429 during a rebuild is expected, not
+    exceptional, and the build must wait rather than die halfway with a
+    half-written index.
+
+    A QUERY is different: a citizen is waiting. Interactive calls get one
+    short retry and then fail honestly, because a 40-second pause is worse
+    than a refusal.
+    """
+    import time
+
+    from openai import RateLimitError
+
+    from chatbot.llm import client
+
+    interactive = len(prepared) == 1
+    attempts = 2 if interactive else 6
+    max_wait = 5.0 if interactive else 75.0
+
+    for attempt in range(1, attempts + 1):
+        try:
+            return client.embeddings.create(
+                model=settings.embed_model,
+                input=prepared,
+                dimensions=settings.embed_dim,
+            )
+        except RateLimitError as exc:
+            if attempt == attempts:
+                raise
+            # Google states the wait in the error text; honour it rather
+            # than guessing, but never block a request path for that long.
+            match = _RETRY_AFTER.search(str(exc))
+            wait = float(match.group(1)) + 1 if match else 20.0 * attempt
+            wait = min(wait, max_wait)
+            logger.warning("embed_rate_limited", extra={
+                "attempt": attempt, "of": attempts, "waiting_s": round(wait, 1),
+                "texts": len(prepared), "interactive": interactive})
+            time.sleep(wait)
+
+
+def _embed_gemini(texts):
+    """
+    Embed via the OpenAI-compatible endpoint already used for generation.
+
+    Requests settings.embed_dim directly. gemini-embedding-001 is natively
+    3072-wide and truncates on request (Matryoshka), which keeps the index
+    at ~1.2 MB instead of ~4.7 MB.
+
+    THE RE-NORMALISATION IS LOAD-BEARING. A truncated vector is no longer
+    unit length — measured on this model, the norm is 1.0000 at 3072 dims
+    and 0.5790 at 768. Skipping it does not raise; it multiplies every
+    similarity score by roughly 0.58 and quietly invalidates every threshold
+    tuned against the old scale.
+    """
+    prepared = [normalize_arabic(t) for t in texts]
+
+    # Split because build_index.py hands over the whole corpus in one call —
+    # 379 chunks today, more as it grows.
+    #
+    # Batching does NOT save quota: the free tier counts 100 embed requests
+    # per minute and a batch of 100 texts spends all 100. It only saves HTTP
+    # round trips, and it bounds what one 429 costs.
+    if len(prepared) > EMBED_BATCH:
+        return _l2_normalise(np.vstack([
+            _embed_gemini(prepared[i:i + EMBED_BATCH])
+            for i in range(0, len(prepared), EMBED_BATCH)
+        ]))
+
+    response = _embed_request(prepared)
+    # Order matters: row N must be the vector for text N, or the whole index
+    # is silently shuffled. Sort by `index` when the API populates it —
+    # Gemini's OpenAI-compatibility layer returns None there and relies on
+    # response order, so fall back to that rather than crashing on the sort.
+    data = list(response.data)
+    if all(getattr(item, "index", None) is not None for item in data):
+        data.sort(key=lambda item: item.index)
+    if len(data) != len(prepared):
+        raise RuntimeError(
+            f"asked for {len(prepared)} embeddings, got {len(data)}. Refusing "
+            f"to build a misaligned index.")
+    vectors = np.asarray([item.embedding for item in data], dtype=np.float32)
+
+    if vectors.shape[1] != settings.embed_dim:
+        raise RuntimeError(
+            f"{settings.embed_model} returned {vectors.shape[1]}-dim vectors, "
+            f"expected {settings.embed_dim}. The index and the query must be "
+            f"the same width — set EMBED_DIM and rebuild the index.")
+    return _l2_normalise(vectors)
+
+
+def _embed_local(texts, prefix):
+    """Normalize (D3) -> prefix (E5) -> encode -> L2-normalize."""
     prepared = [prefix + normalize_arabic(t) for t in texts]
     vectors = get_model().encode(
         prepared,
@@ -100,6 +244,15 @@ def _encode(texts, prefix):
         show_progress_bar=False,
     )
     return np.asarray(vectors, dtype=np.float32)
+
+
+def _encode(texts, prefix):
+    """Turn text into unit vectors, using whichever backend is configured."""
+    if not texts:
+        return np.zeros((0, settings.embed_dim), dtype=np.float32)
+    if settings.embed_backend == "local":
+        return _embed_local(texts, prefix)
+    return _embed_gemini(texts)
 
 
 def embed_query(question: str) -> np.ndarray:
