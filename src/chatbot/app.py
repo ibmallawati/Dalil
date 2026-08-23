@@ -267,25 +267,41 @@ def ratelimit_handler(error):
 
 def warm_embedder():
     """
-    Load the embedding model at startup instead of on first use.
+    Prove the embedding path works before serving anyone.
 
-    sentence-transformers loads lazily, so without this the FIRST question
-    that falls through to similarity search pays the load cost. Measured:
-    45 seconds, arriving mid-conversation on the sixth request, long after
-    the app looked ready. Every question that resolved a service ran fast
-    and gave no warning it was coming.
+    Originally this loaded a 700 MB model so the first question did not pay
+    a 45-second cost mid-conversation. Embeddings are remote now, so there
+    is nothing to load — but there is something better to check: that the
+    credential and endpoint actually work.
 
-    Paying it at boot is strictly better: the delay happens once, before
-    anyone is watching, and `/healthz` does not go green until it is done.
+    A bad key, a wrong base URL or an exhausted quota otherwise surfaces on
+    a citizen's first question as a failed request. Here it surfaces in the
+    boot logs, before anyone is watching, and one embedding call is cheap.
+
+    Deliberately NOT fatal. A rate limit at boot says nothing about the next
+    minute, and refusing to start over a transient 429 would turn a blip
+    into an outage.
     """
-    from chatbot.rag.retrieval import get_model
-
     start = time.perf_counter()
-    logger.info("embedder_warmup_started", extra={"model": settings.embed_model})
-    get_model()
-    logger.info("embedder_warmup_complete",
-                extra={"model": settings.embed_model,
-                       "duration_s": round(time.perf_counter() - start, 1)})
+    logger.info("embedder_warmup_started",
+                extra={"backend": settings.embed_backend,
+                       "model": settings.embed_model})
+    try:
+        from chatbot.rag.retrieval import embed_query
+
+        embed_query("تجديد جواز السفر")
+        logger.info("embedder_warmup_complete",
+                    extra={"backend": settings.embed_backend,
+                           "model": settings.embed_model,
+                           "duration_s": round(time.perf_counter() - start, 1)})
+    except Exception as exc:                              # noqa: BLE001
+        logger.error("embedder_warmup_failed", extra={
+            "backend": settings.embed_backend,
+            "model": settings.embed_model,
+            "error": f"{type(exc).__name__}: {exc}",
+            "hint": "retrieval will fail until this is fixed; check LLM_API_KEY "
+                    "and LLM_BASE_URL",
+        })
 
 
 def main():

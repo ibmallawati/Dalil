@@ -1,0 +1,42 @@
+# What `gcloud run deploy --source .` UPLOADS to Cloud Build.
+#
+# This is a different file from .dockerignore and both matter:
+#   .gcloudignore  -> what leaves your machine
+#   .dockerignore  -> what lands inside the image
+#
+# Without this file gcloud falls back to .gitignore, which is close but not
+# the same list — and an upload that includes venv/ or a 63 MB scrape is a
+# slow deploy every single time.
+
+.gcloudignore
+.git/
+.gitignore
+.claude/
+
+# Never upload the local key file. The deployed key comes from Secret
+# Manager; see --set-secrets in the deploy command.
+.env
+
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+venv/
+.venv/
+.venv-wsl/
+logs/
+experiments/
+*.csv
+
+# Source material for building the corpus, not the corpus itself.
+# data/index/ and data/registry/ are what the app actually reads, and they
+# are deliberately NOT excluded.
+data/pdf_inbox/
+data/pdf_ocr/
+data/needs_review/
+data/scraped_raw/
+scrape_qanoon_run1/
+
+# Build-time only.
+docs/
+tests/

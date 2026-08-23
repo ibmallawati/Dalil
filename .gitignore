@@ -17,11 +17,25 @@ logs/*
 # Claude Code local session files
 .claude/
 
-# Source PDFs dropped for OCR. The extracted .ocr.txt IS tracked -- that is
-# the reproducible artefact; the binaries are large and often not ours to
-# redistribute.
+# Source PDFs dropped for OCR. Large, and often not ours to redistribute.
 data/pdf_inbox/*.pdf
 data/pdf_inbox/*.PDF
+
+# OCR output and import rejects: build-time working material, never read at
+# runtime, and regenerable from the PDFs.
+#
+# They are untracked for a concrete reason. LINUX CAPS A FILENAME AT 255
+# BYTES; Windows caps it at 255 CHARACTERS. Arabic is two bytes per letter
+# in UTF-8, so names that are perfectly legal here are twice the size on a
+# Linux host — one of these was 819 bytes. Render's deploy failed with
+# "File name too long" during git clone, before the build even started.
+#
+# The two الوزارات files are force-added below: they are the provenance for
+# the 63 imported services, and their names are short enough to clone.
+data/pdf_ocr/*
+!data/pdf_ocr/الوزارات.ocr.txt
+!data/pdf_ocr/الوزارات 2.ocr.txt
+data/needs_review/
 scrape_qanoon_run1
 
 .venv/
