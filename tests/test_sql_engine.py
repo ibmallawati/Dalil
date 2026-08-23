@@ -12,6 +12,19 @@ from src.chatbot.sql.engine import answer_question, build_schema_text, clean_sql
 
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "databases" / "omantel_demo.db"
 
+# The demo database was removed when the corpus was cleaned up for hosting.
+# It belonged to the Omantel fork this project started from; Daleel has no
+# database and chatbot.sql is not on the request path.
+#
+# The two tests that need it are skipped rather than deleted, because the
+# other eleven — the SQL safety guard, which is the part that actually
+# mattered — still run and still pass without it.
+needs_demo_db = pytest.mark.skipif(
+    not DB_PATH.exists(),
+    reason="data/databases/omantel_demo.db was removed with the Omantel fork's "
+           "demo data; chatbot.sql is legacy and off the request path.",
+)
+
 
 class FakeClient:
     """Returns canned SQL for the SQL-writing call, and a canned sentence for
@@ -48,6 +61,7 @@ def test_is_safe_select(sql, expected):
     assert is_safe_select(sql) is expected
 
 
+@needs_demo_db
 def test_answer_question_happy_path():
     schema = build_schema_text(str(DB_PATH))
     result = answer_question("how much is Smart 20?", schema, FakeClient, str(DB_PATH))
@@ -55,6 +69,7 @@ def test_answer_question_happy_path():
     assert "20" in result["answer"]
 
 
+@needs_demo_db
 def test_answer_question_no_match_guard():
     schema = build_schema_text(str(DB_PATH))
     result = answer_question("how much is Galaxy 99?", schema, FakeClient, str(DB_PATH))

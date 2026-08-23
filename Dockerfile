@@ -25,19 +25,10 @@ COPY --chown=user requirements.txt pyproject.toml ./
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Bake the embedding model INTO the image (~1.1 GB).
-#
-# Without this it downloads from the HF hub on first use — and because
-# warm_embedder() runs before app.run(), the container does not open its port
-# until that finishes. On a scale-to-zero host like Cloud Run that download
-# repeats on EVERY cold start, inside the startup-probe window. Baking it in
-# turns a network fetch into a local disk read.
-#
-# Must match EMBED_MODEL in chatbot.config, and must run as `user` so the
-# weights land in this image's HF_HOME rather than a root-owned cache.
-ARG EMBED_MODEL=intfloat/multilingual-e5-base
-RUN python -c "from sentence_transformers import SentenceTransformer; \
-    SentenceTransformer('${EMBED_MODEL}')"
+# No model is baked in any more, and none is downloaded at runtime.
+# Embeddings go over HTTPS (see chatbot.rag.retrieval), which is what takes
+# this image from ~1.2 GB of resident memory down to well under 512 MB —
+# the difference between deployable on a free host and not.
 
 COPY --chown=user src/ ./src/
 # ↑ --no-deps: dependencies were already installed from requirements.txt

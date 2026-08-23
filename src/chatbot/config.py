@@ -91,37 +91,76 @@ DEFAULT_LLM_REASONING_EFFORT = "minimal"
 # JSON drops every response onto the plain-prose fallback.
 DEFAULT_LLM_MAX_TOKENS = 2000
 
-# --- Embedding defaults ---------------------------------------------------
-# intfloat/multilingual-e5-base: 768-dim, strong Arabic, runs on CPU.
+# --- Embeddings -----------------------------------------------------------
+# Two backends. "gemini" is the default and the only one whose dependencies
+# are installed.
+#
+#   gemini  embeds over HTTPS via the same OpenAI-compatible endpoint used
+#           for generation, so it needs no extra credential.
+#   local   runs intfloat/multilingual-e5-base in-process. Requires
+#           `pip install sentence-transformers`, which is NOT in
+#           requirements.txt any more. Kept because it is the reference
+#           implementation every retrieval threshold was tuned against, and
+#           a backend swap that cannot be compared to a baseline is a guess.
+#
+# WHY THE DEFAULT CHANGED. Measured on this machine: the app is 87 MB of RAM
+# with the index loaded, and 1,143 MB once e5 answers one question. The
+# model is 705 MB of that. No free host offers 1.2 GB; several offer 512 MB.
+# Moving the model off-process is what makes deployment possible at all.
+#
+# The cost is honest: retrieval now depends on the network. It can
+# rate-limit or time out, which it never could before.
+DEFAULT_EMBED_BACKEND = "gemini"
+
+# 3072 is this model's native width; the OpenAI-compatible endpoint will
+# truncate to 768 or 1536 on request. 768 keeps the index at ~1.2 MB rather
+# than ~4.7 MB and keeps every stored vector the same shape as before.
+#
+# TRUNCATED VECTORS COME BACK UNNORMALISED. Measured: norm 1.0000 at 3072,
+# 0.5790 at 768. Retrieval treats a dot product AS cosine similarity, so a
+# vector that is not unit length silently rescales every score — and every
+# threshold derived from those scores. chatbot.rag.retrieval re-normalises;
+# that is not optional.
+DEFAULT_EMBED_MODEL = "gemini-embedding-001"
+DEFAULT_EMBED_DIM = 768
+
+# Used only when EMBED_BACKEND=local.
 #
 # E5 IS PREFIX-SENSITIVE. Documents must be embedded as "passage: <text>"
 # and questions as "query: <text>". Omitting the prefixes does not raise —
-# it silently degrades retrieval, which is the worst possible failure here
-# because it would corrupt D2's threshold and D7's accuracy number without
-# any visible error. The prefixes live in chatbot.rag.retrieval; they are
-# not optional.
-#
-# Lighter fallback if this is too heavy locally (also update EMBED_DIM=384):
-#   sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
-DEFAULT_EMBED_MODEL = "intfloat/multilingual-e5-base"
-DEFAULT_EMBED_DIM = 768
+# it silently degrades retrieval. The prefixes live in
+# chatbot.rag.retrieval; they are not optional for that backend.
+DEFAULT_LOCAL_EMBED_MODEL = "intfloat/multilingual-e5-base"
+DEFAULT_LOCAL_EMBED_DIM = 768
 
 # --- D2: retrieval similarity threshold ----------------------------------
-# PROVISIONAL. Not yet evidence-based; do not quote it as if it were.
+# MEASURED for gemini-embedding-001 at 768 dims, 23 Aug 2026.
 #
-# Similarity scores are NOT portable across embedding models. The original
-# 0.30 was derived for all-MiniLM-L6-v2 and is meaningless here.
+# Similarity scores are NOT portable across embedding models. This number
+# has now been wrong twice for that reason: 0.30 came from
+# all-MiniLM-L6-v2, then 0.80 from e5-base. Changing the backend without
+# re-deriving it is not a tuning oversight, it is a broken app — at 0.80,
+# Gemini refused 7 of 14 demo questions because its whole score range sits
+# lower.
 #
-# E5 in particular compresses its score range: cosine similarity between
-# two UNRELATED Arabic texts commonly still lands around 0.70-0.80, so the
-# usable threshold sits high and the in-corpus/out-of-corpus gap is narrow.
-# Guessing this number is precisely how Daleel ends up confidently
-# answering a question it has no grounds for, live, in front of judges.
+# Derived by scoring 18 in-corpus questions (including colloquial phrasings
+# and bare noun phrases) against 8 out-of-corpus ones:
 #
-# D2 replaces this by running the D7 evaluation set, printing the top score
-# per question, and choosing from the gap between the two distributions.
-# Read from the environment so that sweep needs no code edit.
-DEFAULT_SIMILARITY_THRESHOLD = 0.80
+#     worst legitimate question .... 0.6382   «أبغى أجدد الاستمارة»
+#     best unrelated question ...... 0.5908   «أريد حجز تذكرة طيران إلى دبي»
+#     separation ................... 0.0474
+#
+# At 0.61: zero real questions refused, zero unrelated questions answered.
+#
+# Worth recording that the separation used to be 0.0153 under e5, which is
+# why no threshold worked well then and the three-layer gate was built to
+# compensate. Gemini's range is roughly 3x better separated, so this
+# threshold does real work rather than being a formality.
+#
+# Placed nearer the unrelated band than the legitimate one on purpose:
+# refusing a real question is visible and recoverable, answering a
+# restaurant question out of the passport file is neither.
+DEFAULT_SIMILARITY_THRESHOLD = 0.61
 
 # --- Margin-based ambiguity (L2) -----------------------------------------
 # PROVISIONAL, same caveat as the threshold above.
@@ -153,7 +192,8 @@ class Settings:
     def llm_model(self) -> str:
         """The preferred model. Kept for display and logging."""
         return self.llm_models[0]
-    # embeddings (local, in-process)
+    # embeddings
+    embed_backend: str         # "gemini" (over HTTPS) or "local" (in-process)
     embed_model: str
     embed_dim: int
     # retrieval
@@ -210,6 +250,22 @@ def load_settings() -> Settings:
         if m.strip()
     ) or (DEFAULT_LLM_MODEL,)
 
+    # Choosing the backend also chooses its model and width. Defaulting the
+    # model independently would let EMBED_BACKEND=local run with
+    # "gemini-embedding-001" as its model name, which fails deep inside
+    # sentence-transformers with an unhelpful error about a missing repo.
+    embed_backend = os.environ.get(
+        "EMBED_BACKEND", DEFAULT_EMBED_BACKEND).strip().lower()
+    if embed_backend not in ("gemini", "local"):
+        raise RuntimeError(
+            f"EMBED_BACKEND must be 'gemini' or 'local', got {embed_backend!r}.")
+    if embed_backend == "local":
+        default_embed_model = DEFAULT_LOCAL_EMBED_MODEL
+        default_embed_dim = DEFAULT_LOCAL_EMBED_DIM
+    else:
+        default_embed_model = DEFAULT_EMBED_MODEL
+        default_embed_dim = DEFAULT_EMBED_DIM
+
     LOGS_DIR.mkdir(exist_ok=True)
 
     return Settings(
@@ -220,12 +276,13 @@ def load_settings() -> Settings:
             "LLM_REASONING_EFFORT", DEFAULT_LLM_REASONING_EFFORT
         ).strip(),
         llm_max_tokens=int(os.environ.get("LLM_MAX_TOKENS", DEFAULT_LLM_MAX_TOKENS)),
-        embed_model=os.environ.get("EMBED_MODEL", DEFAULT_EMBED_MODEL),
+        embed_backend=embed_backend,
+        embed_model=os.environ.get("EMBED_MODEL", default_embed_model),
         # Tripwire, not decoration: an embeddings.npy built by a different
         # model has a different width. Without this check that surfaces as
         # an opaque NumPy shape error at request time — or, if the widths
         # happen to match, as silently wrong similarity scores.
-        embed_dim=int(os.environ.get("EMBED_DIM", DEFAULT_EMBED_DIM)),
+        embed_dim=int(os.environ.get("EMBED_DIM", default_embed_dim)),
         similarity_threshold=float(
             os.environ.get("SIMILARITY_THRESHOLD", DEFAULT_SIMILARITY_THRESHOLD)
         ),
