@@ -1,7 +1,0 @@
-service : طلب منح الزكاة
-url     : https://www.mara.gov.om/arabic/Services.aspx
-
-FAILED — 1 finding(s) across 1 check(s).
-
-## document_not_in_source  (1)
-  - required document «1. تختلف بحسب نوع المساعدة.» does not appear in the page text
