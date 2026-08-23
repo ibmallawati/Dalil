@@ -176,7 +176,11 @@ def load_settings() -> Settings:
     # Fail fast: nothing in this package imports without a generation key.
     # (A local Ollama endpoint ignores the value, but still needs one set —
     # use any placeholder string in that case.)
-    llm_api_key = os.environ.get("LLM_API_KEY")
+    # Stripped, because almost every way of getting a key into a secret store
+    # appends a newline — piping through a shell, saving from an editor,
+    # pasting into a web form. The key then fails authentication with a 401
+    # that looks like a wrong key rather than a stray byte.
+    llm_api_key = (os.environ.get("LLM_API_KEY") or "").strip()
     if not llm_api_key:
         # Named for BOTH places this runs. Deployed, there is no .env file to
         # copy, and being told to make one sends you looking for a filesystem
