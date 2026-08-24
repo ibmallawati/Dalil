@@ -39,6 +39,7 @@ logger = logging.getLogger(__name__)
 
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from limits import parse
 
 from chatbot.agent import registry
 from chatbot.agent.answer import generate_answer
@@ -66,6 +67,45 @@ app = Flask(
 
 limiter = Limiter(key_func=get_remote_address, app=app,
                   default_limits=["100 per hour"])
+
+# Declared once so the decorator and the usage readout cannot drift. A bar
+# that reports a different limit from the one being enforced is worse than
+# no bar: it tells a citizen they have messages left and then refuses them.
+CHAT_RATE_LIMIT = "20 per minute"
+_CHAT_LIMIT_ITEM = parse(CHAT_RATE_LIMIT)
+
+
+def quota_status():
+    """
+    How much of the per-minute chat allowance this caller has left.
+
+    Read from the limiter's own storage rather than counted separately, so
+    the number shown is the number enforced.
+
+    The identifiers matter and are not obvious: flask-limiter buckets by
+    (key, endpoint), so ('1.2.3.4',) alone always reports a full allowance
+    while ('1.2.3.4', 'chat') actually decrements. Verified by making
+    requests and watching it count down 20 -> 19 -> 18.
+    """
+    try:
+        stats = limiter.limiter.get_window_stats(
+            _CHAT_LIMIT_ITEM, get_remote_address(), "chat")
+        limit = _CHAT_LIMIT_ITEM.amount
+        remaining = max(0, min(stats.remaining, limit))
+        return {
+            "limit": limit,
+            "remaining": remaining,
+            "used": limit - remaining,
+            "percent_used": round((limit - remaining) / limit * 100),
+            "resets_in_s": max(0, int(stats.reset_time - time.time())),
+            "window": "minute",
+        }
+    except Exception as exc:                              # noqa: BLE001
+        # A usage meter is a nicety. It must never be the reason a citizen
+        # cannot get an answer, so a storage hiccup degrades to "unknown".
+        logger.warning("quota_status_unavailable",
+                       extra={"error": f"{type(exc).__name__}: {exc}"})
+        return None
 
 
 def log_exchange(question, strategy, answer_time):
@@ -146,6 +186,17 @@ def home():
     return render_template("index.html", directory=registry.browse_directory())
 
 
+@app.route("/usage")
+@limiter.exempt
+def usage():
+    """
+    The chat allowance, for the meter the page shows before its first
+    message. Exempt from rate limiting: a request that only asks "how many
+    do I have left?" must not itself consume one.
+    """
+    return jsonify(quota_status() or {"limit": None})
+
+
 @app.route("/healthz")
 @limiter.exempt
 def healthz():
@@ -166,7 +217,7 @@ def healthz():
 
 
 @app.route("/chat", methods=["POST"])
-@limiter.limit("20 per minute")
+@limiter.limit(CHAT_RATE_LIMIT)
 def chat():
     data = request.get_json() or {}
     history = data.get("history", [])
@@ -235,6 +286,7 @@ def chat():
         payload.update({
             "strategy": plan.strategy.value,
             "answer_time": round(answer_time, 2),
+            "quota": quota_status(),
         })
         return jsonify(payload)
 

@@ -267,3 +267,78 @@ def test_healthz_reports_coverage_and_models(client):
     assert data["coverage"]["authority_count"] >= 10
     assert data["coverage"]["service_count"] >= 26
     assert isinstance(data["models_available"], list)
+
+
+# --- the chat allowance meter --------------------------------------------
+# The numbers shown must be the numbers enforced. A meter that disagrees
+# with the limiter promises messages the server then refuses, which is a
+# worse experience than showing nothing at all.
+
+def test_usage_reports_a_full_allowance_before_any_chat(client):
+    data = client.get("/usage").get_json()
+    assert data["limit"] == 20
+    assert data["remaining"] == 20
+    assert data["percent_used"] == 0
+
+
+def test_usage_does_not_itself_consume_the_allowance(client):
+    """
+    /usage is limiter-exempt. Asking how many messages are left must not
+    cost one — otherwise the meter drains the thing it measures.
+    """
+    for _ in range(5):
+        client.get("/usage")
+    assert client.get("/usage").get_json()["remaining"] == 20
+
+
+def test_each_answer_reports_the_allowance_it_just_used():
+    """
+    Carried on the /chat reply rather than fetched separately, so the meter
+    updates from the same response that consumed the message.
+
+    Needs its own client: the shared fixture DISABLES the limiter so other
+    tests can post freely, and a disabled limiter records nothing — the
+    meter would read a full allowance forever. Uses a unique caller address
+    so other tests' requests are not in this bucket.
+    """
+    app_module.app.config["TESTING"] = True
+    app_module.limiter.enabled = True
+    caller = {"REMOTE_ADDR": "203.0.113.7"}   # TEST-NET-3, reserved for docs
+    try:
+        with app_module.app.test_client() as c:
+            first = c.post("/chat", environ_base=caller, json={
+                "history": [{"role": "user", "content": "كيف أجدد جواز سفري؟"}]
+            }).get_json()["quota"]
+            second = c.post("/chat", environ_base=caller, json={
+                "history": [{"role": "user", "content": "كيف أجدد جواز سفري؟"}]
+            }).get_json()["quota"]
+    finally:
+        app_module.limiter.enabled = False
+
+    assert first["used"] == 1 and first["remaining"] == 19
+    assert second["used"] == 2 and second["remaining"] == 18
+    assert second["percent_used"] == 10
+
+
+def test_the_meter_agrees_with_what_the_limiter_enforces(client):
+    """
+    The limit in the meter and the limit in the decorator come from one
+    constant, so they cannot drift apart.
+    """
+    from limits import parse
+
+    assert client.get("/usage").get_json()["limit"] == \
+        parse(app_module.CHAT_RATE_LIMIT).amount
+
+
+def test_a_broken_limiter_hides_the_meter_rather_than_failing(client, monkeypatch):
+    """
+    The meter is a convenience. A storage hiccup must never be the reason a
+    citizen cannot get an answer, so it degrades to absent.
+    """
+    def boom(*a, **k):
+        raise RuntimeError("storage gone")
+
+    monkeypatch.setattr(app_module.limiter.limiter, "get_window_stats", boom)
+    assert app_module.quota_status() is None
+    assert ask(client, "كيف أجدد جواز سفري؟")["format"] == "answer"

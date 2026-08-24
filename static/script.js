@@ -17,14 +17,18 @@ const threadEl = document.getElementById("thread");
 const formEl = document.getElementById("composer");
 const inputEl = document.getElementById("input");
 const sendBtn = document.getElementById("send");
-const servedByEl = document.getElementById("served-by");
+const quotaEl = document.getElementById("quota");
+const quotaPctEl = document.getElementById("quota-pct");
+const quotaFillEl = document.getElementById("quota-fill");
+const heroSlotEl = document.getElementById("hero-slot");
+const themeBtn = document.getElementById("theme-toggle");
+const navEl = document.getElementById("nav");
+const navBtn = document.getElementById("nav-toggle");
+const disclaimerEl = document.querySelector(".disclaimer");
 
 const history = [];
 let clarifyCount = 0;
 let busy = false;
-// The model at the head of the failover chain. The first answer defines it;
-// anything different afterwards means we have fallen down the chain.
-let primaryModel = null;
 
 // The answer is free-form now: no fixed field list, no «غير محدد» padding.
 // The model returns Arabic text in a narrow markdown subset and the shape
@@ -65,29 +69,163 @@ function setBusy(state) {
   messagesEl.setAttribute("aria-busy", state ? "true" : "false");
 }
 
+// The pipeline always runs in this order: L1 and retrieval first, then one
+// LLM call. Measured on the live app — routing lands around 0.4-0.9s and
+// generation takes 4-7s — so these labels describe what is genuinely
+// happening at the moment they appear.
+//
+// They are NOT progress. The server sends one response at the end and
+// nothing in between, so claiming a percentage here would be inventing it.
+const THINKING_PHASES = [
+  { after: 0, label: "يبحث في المصادر الرسمية…" },
+  { after: 1400, label: "يصيغ الإجابة من المصادر…" },
+  { after: 9000, label: "الإجابة تستغرق وقتاً أطول من المعتاد…" },
+];
+
 function showLoading() {
   const node = bubble("bot");
   const wrap = el("div", "loading");
   const dots = el("span", "typing");
   dots.append(el("span"), el("span"), el("span"));
-  wrap.append(dots, el("span", "loading__label", "جارٍ البحث في المصادر الرسمية…"));
+  const label = el("span", "loading__label", THINKING_PHASES[0].label);
+  wrap.append(dots, label);
   node.appendChild(wrap);
   scrollToEnd();
+
+  // Advance the wording as the request goes on. Cleared by whatever
+  // replaces this node, so a fast answer never shows the later phases.
+  const started = Date.now();
+  const timers = THINKING_PHASES.slice(1).map((phase) =>
+    setTimeout(() => {
+      label.textContent = phase.label;
+      if (phase.after >= 9000) wrap.classList.add("loading--slow");
+    }, phase.after - (Date.now() - started))
+  );
+  node._stopThinking = () => timers.forEach(clearTimeout);
   return node;
 }
 
-// Which model answered. Quiet, but present: mid-demo it says whether we are
-// on the primary model or already down the failover chain.
-function updateServedBy(model) {
-  if (!model) return;
-  if (!primaryModel) primaryModel = model;
-  servedByEl.textContent = model;
-  servedByEl.className =
-    "badge " + (model === primaryModel ? "badge--primary" : "badge--fallback");
-  servedByEl.title =
-    model === primaryModel
-      ? "النموذج الأساسي"
-      : "نموذج احتياطي — تم التبديل تلقائياً";
+// --- theme -----------------------------------------------------------------
+//
+// Three states, not two. "system" is the default and follows the OS; the
+// toggle writes an explicit light or dark that outranks it. The <head> script
+// applies a saved value before first paint so the page never flashes the
+// wrong palette.
+
+function currentTheme() {
+  const stamped = document.documentElement.getAttribute("data-theme");
+  if (stamped === "light" || stamped === "dark") return stamped;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function labelTheme(theme) {
+  themeBtn.setAttribute(
+    "aria-label",
+    theme === "dark" ? "التبديل إلى الوضع الفاتح" : "التبديل إلى الوضع الداكن"
+  );
+}
+
+function setTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  try {
+    localStorage.setItem("daleel-theme", theme);
+  } catch (error) {
+    // Private mode. The choice still applies for this visit.
+  }
+  labelTheme(theme);
+}
+
+themeBtn.addEventListener("click", () => {
+  setTheme(currentTheme() === "dark" ? "light" : "dark");
+});
+
+// Label only — deliberately NOT setTheme(). Calling it here would write the
+// current scheme to storage on every page load, which silently converts
+// "follow my system" into a permanent choice the visitor never made.
+labelTheme(currentTheme());
+
+// --- mobile navigation -----------------------------------------------------
+
+function closeNav() {
+  navEl.classList.remove("is-open");
+  navBtn.setAttribute("aria-expanded", "false");
+}
+
+navBtn.addEventListener("click", () => {
+  const open = navEl.classList.toggle("is-open");
+  navBtn.setAttribute("aria-expanded", open ? "true" : "false");
+});
+// Tapping a link should navigate AND dismiss; leaving the panel open over
+// the section it just scrolled to is the classic mobile-menu bug.
+navEl.addEventListener("click", (event) => {
+  if (event.target.closest(".nav__link")) closeNav();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") closeNav();
+});
+
+// --- where the composer lives ----------------------------------------------
+//
+// Before the first question it belongs inside the hero, because the input IS
+// the product. Afterwards it pins to the bottom, because the conversation is.
+//
+// The form ELEMENT moves rather than being duplicated: one form means the
+// submit handler, the disabled state and focus all keep working, and there is
+// never a second stale input on the page.
+
+function placeComposer() {
+  const target = shellEl.classList.contains("is-chatting")
+    ? shellEl
+    : heroSlotEl;
+  if (formEl.parentElement === target) return;
+  if (target === shellEl) shellEl.insertBefore(formEl, disclaimerEl);
+  else target.appendChild(formEl);
+}
+
+// --- chat allowance meter ------------------------------------------------
+//
+// A bar and a percentage, nothing else. The figure is the share of the
+// allowance CONSUMED, which is what the bar fills — so both halves say the
+// same thing and an empty bar means plenty left.
+//
+// Numbers come from the rate limiter's own storage, so the meter agrees
+// with what the server enforces. The exact counts moved into the tooltip
+// when the labels came off.
+
+function renderQuota(quota) {
+  if (!quota || !quota.limit) {
+    quotaEl.hidden = true;
+    return;
+  }
+  quotaEl.hidden = false;
+
+  const pct = Math.max(0, Math.min(100, quota.percent_used));
+  quotaPctEl.textContent = `${pct}%`;
+  quotaFillEl.style.width = `${pct}%`;
+
+  const track = quotaFillEl.parentElement;
+  track.setAttribute("aria-valuenow", String(pct));
+  // The counts are no longer on screen, so the tooltip is where they live.
+  // Set on the whole meter, not just the track, so hovering the percentage
+  // reveals it too.
+  quotaEl.title =
+    quota.remaining > 0
+      ? `${quota.remaining} من ${quota.limit} رسالة متبقية في هذه الدقيقة`
+      : "انتهت الرسائل المتاحة — تتجدد خلال ثوانٍ";
+
+  // Warn before the limit bites rather than after.
+  quotaEl.classList.toggle("quota--warn", quota.remaining <= 5 && quota.remaining > 0);
+  quotaEl.classList.toggle("quota--spent", quota.remaining === 0);
+}
+
+async function refreshQuota() {
+  try {
+    const response = await fetch("/usage");
+    if (response.ok) renderQuota(await response.json());
+  } catch (error) {
+    // The meter is a convenience. Losing it must never surface as an error
+    // in a conversation, so this stays silent and the bar stays hidden.
+  }
 }
 
 // --- markdown subset -----------------------------------------------------
@@ -205,6 +343,89 @@ function sourcesBlock(data) {
   return box;
 }
 
+// --- typing the answer out -----------------------------------------------
+//
+// This animates text the server has ALREADY sent in full. That is not a
+// limitation worked around; it is required.
+//
+// Generation and the L3 grounding check happen in the same call, and
+// app.py inspects the finished answer: `confidence == "none"` turns it into
+// a refusal. Streaming tokens as the model produced them would put an
+// unvalidated government answer on screen and then need to retract it —
+// showing a citizen a fee and taking it back is worse than a short wait.
+//
+// So the text is validated, then revealed. Structure is built first, which
+// also means no reflow as it types: lists and bold are already in place.
+
+const TYPING_TARGET_MS = 1600;   // long answers speed up rather than drag
+const TYPING_MIN_CPS = 45;       // ...but short ones stay readable
+
+function textNodesOf(root) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  return nodes;
+}
+
+function typeOut(container, onDone) {
+  const nodes = textNodesOf(container);
+  const full = nodes.map((n) => n.nodeValue);
+  const total = full.reduce((sum, t) => sum + t.length, 0);
+
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduced || !total) {
+    onDone();
+    return () => {};
+  }
+
+  nodes.forEach((n) => (n.nodeValue = ""));
+  container.classList.add("is-typing");
+
+  const perFrame = Math.max(
+    Math.ceil(total / (TYPING_TARGET_MS / 16)),
+    Math.ceil(TYPING_MIN_CPS / 60)
+  );
+  let shown = 0;
+  let frame = null;
+  let done = false;
+
+  function finish() {
+    if (done) return;
+    done = true;
+    if (frame) cancelAnimationFrame(frame);
+    clearTimeout(safety);
+    nodes.forEach((n, i) => (n.nodeValue = full[i]));
+    container.classList.remove("is-typing");
+    onDone();
+  }
+
+  // requestAnimationFrame does not run in a background tab, and stops
+  // entirely under some automation. Without this the answer could sit half
+  // revealed — a government fee cut off mid-sentence — so a timer that does
+  // keep running guarantees the whole text arrives.
+  const safety = setTimeout(finish, TYPING_TARGET_MS * 3);
+
+  function step() {
+    shown = Math.min(total, shown + perFrame);
+    let left = shown;
+    for (let i = 0; i < nodes.length; i++) {
+      const text = full[i];
+      if (left >= text.length) {
+        nodes[i].nodeValue = text;
+        left -= text.length;
+      } else {
+        nodes[i].nodeValue = text.slice(0, left);
+        left = 0;
+      }
+    }
+    scrollToEnd();
+    if (shown < total) frame = requestAnimationFrame(step);
+    else finish();
+  }
+  frame = requestAnimationFrame(step);
+  return finish;      // callable to skip
+}
+
 function renderAnswer(node, data) {
   node.innerHTML = "";
   const card = el("div", "card");
@@ -217,15 +438,30 @@ function renderAnswer(node, data) {
   }
   if (head.childNodes.length) card.appendChild(head);
 
-  card.appendChild(renderMarkdown(data.answer));
+  const body = renderMarkdown(data.answer);
+  card.appendChild(body);
+  node.appendChild(card);
 
   // Every answer carries its source. This is the visible half of "how do
   // you know it isn't hallucinating" — and it comes from the corpus, never
   // from the model.
-  const sources = sourcesBlock(data);
-  if (sources) card.appendChild(sources);
+  //
+  // Held back until the text finishes so the citation lands under a
+  // complete answer, never beside a half-written one.
+  const reveal = typeOut(body, () => {
+    const sources = sourcesBlock(data);
+    if (sources) {
+      card.appendChild(sources);
+      scrollToEnd();
+    }
+  });
 
-  node.appendChild(card);
+  // Nobody should have to watch an animation to read a government fee.
+  const skip = () => {
+    reveal();
+    card.removeEventListener("click", skip);
+  };
+  card.addEventListener("click", skip);
 }
 
 function renderClarify(node, data) {
@@ -321,11 +557,16 @@ async function deliver(serviceId) {
     // JSON, so their text is shown as-is — but as a failure with a retry,
     // not as an answer.
     if (!response.ok) {
+      if (placeholder._stopThinking) placeholder._stopThinking();
+      // A 429 is exactly when the meter matters most, so refresh it even
+      // though the request itself failed.
+      if (response.status === 429) refreshQuota();
       renderError(placeholder, (data && data.reply) || NETWORK_ERROR, serviceId);
       return;
     }
 
-    updateServedBy(data.served_by);
+    if (placeholder._stopThinking) placeholder._stopThinking();
+    renderQuota(data.quota);
     renderReply(placeholder, data);
 
     // Only the visible reply goes back into the history. Card fields do
@@ -336,6 +577,7 @@ async function deliver(serviceId) {
       content: data.reply || data.text || data.service_name || "",
     });
   } catch (error) {
+    if (placeholder._stopThinking) placeholder._stopThinking();
     renderError(placeholder, NETWORK_ERROR, serviceId);
   } finally {
     setBusy(false);
@@ -349,6 +591,7 @@ function send(text, serviceId) {
   // The hero has done its job the moment a conversation starts.
   if (!shellEl.classList.contains("is-chatting")) {
     shellEl.classList.add("is-chatting");
+    placeComposer();
     const greeting = bubble("bot");
     greeting.appendChild(el("div", "msg__text", WELCOME));
   }
@@ -581,5 +824,10 @@ function initDirectory() {
 }
 
 initDirectory();
+placeComposer();
+
+// Show the allowance before the first message, not after it. Deliberately
+// not awaited: the page is usable whether or not this lands.
+refreshQuota();
 
 inputEl.focus();
