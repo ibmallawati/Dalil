@@ -4,235 +4,259 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="description" content="دليل — مساعد يجيب عن إجراءات الخدمات الحكومية في سلطنة عُمان اعتماداً على المصادر الرسمية." />
-  <meta name="theme-color" content="#0f5f3d" media="(prefers-color-scheme: light)" />
-  <meta name="theme-color" content="#0a1210" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#16202b" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#101720" media="(prefers-color-scheme: dark)" />
   <meta name="color-scheme" content="light dark" />
   <title>دليل — مساعد الخدمات الحكومية في سلطنة عُمان</title>
 
-  <!-- Applied before the stylesheet so a saved theme is in place at first
-       paint. Without this the page renders in the system scheme and then
-       snaps to the saved one, which reads as a bug. Kept inline and tiny
-       for that reason: an external file would arrive too late. -->
+  <!-- قبل ورقة الأنماط: السمة وحالة الشريطين تُطبَّقان قبل أول رسم،
+       وإلا ظهرت الصفحة بلوحة خاطئة ثم قفزت — وهو ما يُقرأ كعطل. -->
   <script>
-    // Runs before the stylesheet so the palette is settled at first paint;
-    // applying it later makes the page flash the wrong theme, which reads as
-    // a bug.
-    //
-    // Daleel defaults to LIGHT rather than to the operating system. It is a
-    // public-service page read in daylight and shown on projectors, and the
-    // light palette is the designed one. Dark is a deliberate choice the
-    // visitor makes with the toggle, and it is remembered.
     (function () {
+      var root = document.documentElement;
       var theme = "light";
       try {
         var saved = localStorage.getItem("daleel-theme");
         if (saved === "light" || saved === "dark") theme = saved;
-      } catch (e) { /* private mode: the default stands */ }
-      document.documentElement.setAttribute("data-theme", theme);
+      } catch (e) {}
+      root.setAttribute("data-theme", theme);
+      try {
+        var folded = [];
+        if (localStorage.getItem("daleel-rail-index") === "folded") folded.push("index-folded");
+        if (localStorage.getItem("daleel-rail-src") === "folded") folded.push("src-folded");
+        if (folded.length) root.setAttribute("data-rails", folded.join(" "));
+      } catch (e) {}
     })();
   </script>
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <!-- IBM Plex Sans Arabic: drawn for Arabic UI text rather than a Latin
-       face with Arabic bolted on. -->
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
 <body>
 
-  <a class="skip" href="#composer">تخطَّ إلى مربع السؤال</a>
+  <a class="skip" href="#input">تخطَّ إلى مربع السؤال</a>
 
   <div id="shell" class="shell">
 
-    <!-- ===================== header ===================== -->
+    <!-- ===================== الرأس ===================== -->
     <header class="topbar">
-      <div class="topbar__inner">
+      <a class="brand" href="/" aria-label="دليل — الصفحة الرئيسية">
+        <!-- بوصلة: دائرة وعلامات الجهات الأربع وإبرة فيروزية. زخرفية،
+             والاسم المجاور هو الاسم المقروء لقارئات الشاشة. -->
+        <span class="brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" width="30" height="30" fill="none">
+            <circle cx="16" cy="16" r="13" stroke="currentColor" stroke-width="1.4" />
+            <path d="M16 4.6v3.2M16 24.2v3.2M4.6 16h3.2M24.2 16h3.2"
+                  stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+            <path d="M16 7 19.4 16 12.6 16Z" fill="#4fc0b8" />
+            <path d="M16 25 19.4 16 12.6 16Z" fill="currentColor" opacity=".45" />
+            <circle cx="16" cy="16" r="1.5" fill="currentColor" />
+          </svg>
+        </span>
+        <span class="brand__names">
+          <span class="brand__name">دليل</span>
+          <span class="brand__tag">خدمات حكومية مسنَدة</span>
+        </span>
+      </a>
 
-        <a class="brand" href="#top" aria-label="دليل — الصفحة الرئيسية">
-          <!-- A green tile carrying the real letter د, with a gold underline
-               running out from it. Earlier this approximated the letterform
-               with CSS borders and rendered as a blob at 38px; the actual
-               character is legible at any size and needs no image, SVG or
-               icon font. Decorative — the wordmark beside it is the
-               accessible name. -->
-          <span class="brand__mark" aria-hidden="true">
-            <span class="brand__glyph">د</span>
-            <span class="brand__rule"></span>
-          </span>
-          <span class="brand__names">
-            <span class="brand__name">دليل</span>
-            <span class="brand__tag">مساعد الخدمات الحكومية في سلطنة عُمان</span>
-          </span>
-        </a>
+      <span class="topbar__sep" aria-hidden="true"></span>
 
-        <!-- Anchors, not routes. This is a single page, and inventing links
-             to pages that do not exist would be a worse experience than
-             three that work. -->
-        <nav class="nav" id="nav" aria-label="أقسام الصفحة">
-          <a class="nav__link" href="#top">الرئيسية</a>
-          <a class="nav__link" href="#directory">الجهات والخدمات</a>
-          <a class="nav__link" href="#how">كيف يعمل؟</a>
-        </nav>
+      <nav class="nav" aria-label="أقسام الصفحة">
+        <a class="nav__link is-current" href="#directory-search">الجهات والخدمات</a>
+        <a class="nav__link" href="#how">كيف يعمل</a>
+      </nav>
 
-        <div class="topbar__tools">
-          <!-- Chat allowance. Numbers come from the rate limiter's own
-               storage (/usage and every /chat reply), so what is displayed
-               is what is enforced. -->
-          <div id="quota" class="quota" hidden>
-            <div class="quota__track"
-                 role="progressbar"
-                 aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"
-                 aria-label="نسبة استهلاك الرسائل المتاحة">
-              <div id="quota-fill" class="quota__fill"></div>
-            </div>
-            <span id="quota-pct" class="quota__pct">0%</span>
-          </div>
-
-          <button id="theme-toggle" class="iconbtn" type="button"
-                  aria-label="تبديل السمة" title="تبديل بين الوضع الفاتح والداكن">
-            <span class="iconbtn__sun" aria-hidden="true"></span>
-            <span class="iconbtn__moon" aria-hidden="true"></span>
-          </button>
-
-          <button id="nav-toggle" class="iconbtn iconbtn--menu" type="button"
-                  aria-label="القائمة" aria-expanded="false" aria-controls="nav">
-            <span class="iconbtn__bars" aria-hidden="true"></span>
-          </button>
-        </div>
+      <div class="topbar__tools">
+        <button id="theme-toggle" class="iconbtn" type="button"
+                aria-label="التبديل إلى الوضع الداكن" title="تبديل السمة">
+          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+            <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+          </svg>
+          <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4" />
+          </svg>
+        </button>
       </div>
     </header>
 
-    <main id="thread" class="thread" tabindex="-1">
-      <span id="top" class="anchor" aria-hidden="true"></span>
+    <div class="panes">
 
-      <!-- ===================== hero ===================== -->
-      <!-- Present until the first question. After that the conversation is
-           the page and the pitch is in the way. -->
-      <section id="hero" class="hero" aria-labelledby="hero-title">
-        <p class="hero__eyebrow">
-          <span class="hero__dot" aria-hidden="true"></span>
-          إجابات مسنَدة إلى مصادر رسمية
-        </p>
-
-        <h1 id="hero-title" class="hero__title">
-          اسأل عن أي خدمة حكومية،
-          <span class="hero__accent">واعرف بالضبط ماذا تفعل</span>
-        </h1>
-
-        <p class="hero__text">
-          يشرح لك دليل المتطلبات والخطوات والرسوم والمدة والجهة المختصة،
-          مع رابط المصدر الرسمي في كل إجابة.
-        </p>
-
-        <!-- The composer is declared after <main> so it can become a pinned
-             bar once the conversation starts. Before that, script.js moves
-             the form element into this slot, so the input reads as the
-             product rather than as a chat box stuck to the bottom.
-
-             NOT aria-hidden: it holds the real form. -->
-        <div id="hero-slot" class="hero__slot"></div>
-
-        <div class="hero__chips" role="group" aria-label="أسئلة مقترحة">
-          <button type="button" class="chip" data-q="كيف أجدد جواز السفر؟">تجديد جواز السفر</button>
-          <button type="button" class="chip" data-q="ما هي إجراءات تجديد البطاقة الشخصية؟">تجديد البطاقة الشخصية</button>
-          <button type="button" class="chip" data-q="كيف أسجل سجل تجاري جديد؟">سجل تجاري</button>
-          <button type="button" class="chip" data-q="ما هي خطوات نقل ملكية مركبة؟">نقل ملكية مركبة</button>
+      <!-- ===================== شريط الفهرس ===================== -->
+      <aside class="rail rail--index" aria-label="فهرس الجهات والخدمات">
+        <!-- الحالة المطويّة -->
+        <div class="rail__strip">
+          <button class="rail__fold" type="button" data-fold="index"
+                  aria-label="فتح الفهرس" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+                 stroke-linecap="round" aria-hidden="true">
+              <path d="M4 7h16M4 12h16M4 17h16" />
+            </svg>
+          </button>
+          <span class="rail__strip-label">الفهرس</span>
+          <span id="fold-count-index" class="rail__strip-badge"></span>
         </div>
-      </section>
 
-      <!-- ===================== how it works ===================== -->
-      <section id="how" class="how" aria-labelledby="how-title">
-        <h2 id="how-title" class="section__title">كيف يعمل دليل؟</h2>
-        <ol class="how__list">
-          <li class="how__step">
-            <span class="how__num" aria-hidden="true">٠١</span>
-            <h3 class="how__name">اسأل بلغتك</h3>
-            <p class="how__text">اكتب سؤالك كما تقوله، لا كما هو مكتوب في النماذج الرسمية.</p>
-          </li>
-          <li class="how__step">
-            <span class="how__num" aria-hidden="true">٠٢</span>
-            <h3 class="how__name">يبحث في المصادر</h3>
-            <p class="how__text">يقرأ دليل ما وثّقته الجهات الحكومية عن الخدمة المطلوبة.</p>
-          </li>
-          <li class="how__step">
-            <span class="how__num" aria-hidden="true">٠٣</span>
-            <h3 class="how__name">يشرح الإجراء</h3>
-            <p class="how__text">المستندات والخطوات والرسوم والمدة — بما هو موثَّق فقط.</p>
-          </li>
-          <li class="how__step">
-            <span class="how__num" aria-hidden="true">٠٤</span>
-            <h3 class="how__name">يدلّك على المصدر</h3>
-            <p class="how__text">كل إجابة تحمل مصدرها، والجهة المختصة هي المرجع النهائي.</p>
-          </li>
-        </ol>
-      </section>
-
-      <!-- ===================== directory ===================== -->
-      <!-- Every authority and service Daleel documents. The chips above are
-           four questions we guessed at; this is for the citizen who does not
-           know what to ask and would rather look. -->
-      <section id="directory" class="directory" aria-labelledby="directory-title">
-        <div class="directory__head">
-          <div>
-            <h2 id="directory-title" class="section__title">الجهات الحكومية وخدماتها</h2>
-            <p id="directory-meta" class="directory__meta"></p>
+        <div class="rail__head">
+          <button class="rail__fold" type="button" data-fold="index"
+                  aria-label="طي الفهرس" aria-expanded="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+                 stroke-linecap="round" aria-hidden="true">
+              <path d="M4 7h16M4 12h16M4 17h16" />
+            </svg>
+          </button>
+          <label class="sr-only" for="directory-search">ابحث عن جهة أو خدمة</label>
+          <div class="search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+                 stroke-linecap="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" /><path d="m20 20-4.3-4.3" />
+            </svg>
+            <input id="directory-search" class="search__input" type="search"
+                   placeholder="ابحث عن جهة أو خدمة" />
           </div>
         </div>
 
-        <label class="sr-only" for="directory-search">ابحث عن جهة أو خدمة</label>
-        <div class="search">
-          <span class="search__icon" aria-hidden="true"></span>
-          <input
-            id="directory-search"
-            class="search__input"
-            type="search"
-            placeholder="ابحث عن جهة أو خدمة — مثال: جواز، سجل تجاري"
-          />
+        <div class="railtabs" role="tablist" aria-label="طريقة العرض">
+          <button type="button" role="tab" class="is-active" aria-selected="true"
+                  data-sort="name">الجهات</button>
+          <button type="button" role="tab" aria-selected="false"
+                  data-sort="size">الأكثر خدمات</button>
         </div>
 
-        <div id="directory-list" class="directory__list"></div>
-        <p id="directory-empty" class="empty" hidden>لا توجد جهة أو خدمة مطابقة لبحثك.</p>
-      </section>
+        <div id="directory-list" class="dirlist"></div>
+        <p id="directory-empty" class="dirempty" hidden>لا توجد جهة أو خدمة مطابقة لبحثك.</p>
+      </aside>
 
-      <section id="messages" class="messages" aria-live="polite" aria-busy="false"></section>
-    </main>
+      <!-- ===================== المحادثة ===================== -->
+      <main class="main">
+        <div id="thread" class="thread" tabindex="-1">
 
-    <!-- ===================== composer ===================== -->
-    <!-- One element, two positions. CSS places it inside the hero before the
-         first question and pins it to the bottom afterwards; keeping a
-         single form means the JS bindings and focus handling stay as they
-         are, and there is never a second stale input on the page. -->
-    <form id="composer" class="composer" autocomplete="off">
-      <label class="sr-only" for="input">اكتب سؤالك</label>
-      <span class="composer__icon" aria-hidden="true"></span>
-      <input
-        id="input"
-        class="composer__input"
-        type="text"
-        placeholder="مثال: كيف أجدد جواز السفر؟"
-        enterkeyhint="send"
-      />
-      <button id="send" class="composer__send" type="submit">
-        <span class="composer__send-label">اسأل</span>
-        <span class="composer__send-arrow" aria-hidden="true"></span>
-      </button>
-    </form>
+          <!-- قبل أول سؤال -->
+          <section id="welcome" class="welcome" aria-labelledby="welcome-title">
+            <div>
+              <h1 id="welcome-title" class="welcome__title">دليلك إلى كل خدمة حكومية عُمانية</h1>
+              <p class="welcome__text" style="margin-top:12px">
+                اسأل عن أي إجراء وستحصل على المستندات والخطوات والرسوم والمدة المتوقعة،
+                مع رابط المصدر الرسمي في كل إجابة.
+              </p>
+            </div>
 
-    <p class="disclaimer">
-      يساعدك دليل على فهم الخدمات والإجراءات الحكومية، وتبقى الجهة المختصة
-      هي المرجع النهائي لأي متطلبات أو قرارات.
-    </p>
+            <div class="figures" id="figures">
+              <div><b id="fig-auth">—</b><span>جهة حكومية</span></div>
+              <div><b id="fig-svc">—</b><span>خدمة موثّقة</span></div>
+              <div><b>مصدر</b><span>مع كل إجابة، من الجهة نفسها</span></div>
+            </div>
 
+            <section id="how" aria-labelledby="how-title">
+              <h2 id="how-title" class="welcome__text" style="font-weight:700;color:var(--ink)">كيف يعمل دليل؟</h2>
+              <ol class="answer__list" style="margin-top:10px">
+                <li>تكتب سؤالك بلغتك، لا بلغة النماذج الرسمية.</li>
+                <li>يُطابق السؤال بفهرس الجهات والخدمات الموثّقة.</li>
+                <li>يستخرج المستندات والخطوات والرسوم والمدة من نص المصدر.</li>
+                <li>يعرض المصدر مع الإجابة — وما لا سند له يُعلن بلا تخمين.</li>
+              </ol>
+            </section>
+          </section>
+
+          <div id="messages" class="messages" aria-live="polite" aria-busy="false"
+               style="display:flex;flex-direction:column;gap:15px"></div>
+        </div>
+
+        <form id="composer" class="composer" autocomplete="off">
+          <label class="sr-only" for="input">اكتب سؤالك</label>
+          <div class="composer__box">
+            <input id="input" class="composer__input" type="text"
+                   placeholder="اكتب سؤالك — مثال: كم رسوم تجديد جواز السفر؟"
+                   enterkeyhint="send" />
+            <button id="send" class="composer__send" type="submit">
+              <span>اسأل</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                   stroke-linecap="round" aria-hidden="true">
+                <path d="M19 12H5" /><path d="m12 19-7-7 7-7" />
+              </svg>
+            </button>
+          </div>
+        </form>
+
+        <p class="disclaimer">
+          يساعدك دليل على فهم الخدمات والإجراءات الحكومية، وتبقى الجهة المختصة
+          هي المرجع النهائي لأي متطلبات أو قرارات.
+        </p>
+
+        <!-- شريط الجوال السفلي -->
+        <nav class="mobilebar" aria-label="التنقّل السريع">
+          <button type="button" class="is-active" data-mobile="ask">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+                 stroke-linecap="round" aria-hidden="true">
+              <path d="M8 10h8M8 14h5" /><path d="M21 12a8 8 0 1 1-3.2-6.4L21 5v7Z" />
+            </svg>
+            اسأل
+          </button>
+          <button type="button" data-mobile="index">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+                 stroke-linecap="round" aria-hidden="true">
+              <path d="M4 5h16M4 12h16M4 19h10" />
+            </svg>
+            الفهرس
+          </button>
+          <button type="button" data-mobile="src">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+                 stroke-linecap="round" aria-hidden="true">
+              <path d="M4 19V5a2 2 0 0 1 2-2h11l3 3v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z" />
+              <path d="M8 8h7M8 12h7" />
+            </svg>
+            السند
+          </button>
+        </nav>
+      </main>
+
+      <!-- ===================== شريط السند ===================== -->
+      <aside class="rail rail--src" aria-label="سند الإجابة">
+        <div class="rail__strip">
+          <button class="rail__fold" type="button" data-fold="src"
+                  aria-label="فتح السند" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+                 stroke-linecap="round" aria-hidden="true">
+              <path d="M4 7h16M4 12h16M4 17h16" />
+            </svg>
+          </button>
+          <span class="rail__strip-label">السند</span>
+          <span id="fold-count-src" class="rail__strip-badge" hidden></span>
+        </div>
+
+        <div class="rail__head">
+          <button class="rail__fold" type="button" data-fold="src"
+                  aria-label="طي السند" aria-expanded="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+                 stroke-linecap="round" aria-hidden="true">
+              <path d="M4 7h16M4 12h16M4 17h16" />
+            </svg>
+          </button>
+          <span class="rail__title">السند</span>
+          <span id="src-note" class="rail__note">بانتظار سؤال</span>
+        </div>
+
+        <div id="src-body" class="srcbody">
+          <div class="srchint">
+            تظهر هنا بطاقة لكل مصدر استندت إليه الإجابة، مع الجهة ونوع المصدر ورابطه.
+          </div>
+          <div class="srclegend">
+            <span><span class="num">١</span>رقم مصدر يُلحق بالإجابة</span>
+            <span><span class="box"></span>الجهة صاحبة المصدر معلنة</span>
+            <span><span class="box box--amber"></span>ما لا سند له يُعرض تحفّظاً لا إجابة</span>
+          </div>
+        </div>
+      </aside>
+
+      <button class="rail__scrim" type="button" aria-label="إغلاق اللوحة" tabindex="-1"></button>
+    </div>
   </div>
 
-  <!-- The coverage map, from data/registry/authorities.json via
-       registry.browse_directory(). Shipped as data rather than markup: the
-       filter needs something to match against that is not the DOM, and the
-       template stays free of hardcoded ministry names. Must precede
-       script.js, which reads it on load. -->
   <script id="directory-data" type="application/json">{{ directory | tojson }}</script>
-
   <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>

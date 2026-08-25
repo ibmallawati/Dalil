@@ -1,50 +1,65 @@
-// Daleel frontend.
+// دليل — واجهة المحادثة والفهرس والسند.
 //
-// The backend is stateless: the whole conversation is sent on every turn.
-// Two extra fields travel with it —
-//   service_id     the citizen tapped a clarifying option; that is their
-//                  answer, so the backend goes straight to that service.
-//   clarify_count  how many clarifying turns have already been spent.
+// عقد الخادم لم يتغيّر:
+//   POST /chat  { history, service_id, clarify_count }
+//               → { format: answer|card|clarify|prose|refusal, reply|answer,
+//                   service_name, authority, confidence, sources[], answer_time }
+//   #directory-data  ← {{ directory | tojson }}
 //
-// D4's "at most one clarifying turn" is enforced SERVER-side using that
-// count. This file reports it honestly; it does not police it. A rule that
-// lives only in browser state stops existing on refresh.
+// ما تغيّر في الواجهة فقط: الفهرس صار شريطاً دائماً، والسند شريطاً ثانياً،
+// وكلاهما قابل للطي، ولا عدّاد حصة على الشاشة.
 
-const shellEl = document.getElementById("shell");
-const heroEl = document.getElementById("hero");
-const messagesEl = document.getElementById("messages");
-const threadEl = document.getElementById("thread");
-const formEl = document.getElementById("composer");
-const inputEl = document.getElementById("input");
-const sendBtn = document.getElementById("send");
-const quotaEl = document.getElementById("quota");
-const quotaPctEl = document.getElementById("quota-pct");
-const quotaFillEl = document.getElementById("quota-fill");
-const heroSlotEl = document.getElementById("hero-slot");
-const themeBtn = document.getElementById("theme-toggle");
-const navEl = document.getElementById("nav");
-const navBtn = document.getElementById("nav-toggle");
-const disclaimerEl = document.querySelector(".disclaimer");
+const shellEl     = document.getElementById("shell");
+const messagesEl  = document.getElementById("messages");
+const threadEl    = document.getElementById("thread");
+const formEl      = document.getElementById("composer");
+const inputEl     = document.getElementById("input");
+const sendBtn     = document.getElementById("send");
+const themeBtn    = document.getElementById("theme-toggle");
+const srcBodyEl   = document.getElementById("src-body");
+const srcNoteEl   = document.getElementById("src-note");
+const foldSrcEl   = document.getElementById("fold-count-src");
+const foldIdxEl   = document.getElementById("fold-count-index");
+const scrimEl     = document.querySelector(".rail__scrim");
 
 const history = [];
 let clarifyCount = 0;
 let busy = false;
 
-// The answer is free-form now: no fixed field list, no «غير محدد» padding.
-// The model returns Arabic text in a narrow markdown subset and the shape
-// follows the question — a fee question gets a fee, not six sections.
-const CONF_LABEL = { high: "معلومات مؤكدة", partial: "معلومات جزئية" };
+const CONF_LABEL   = { high: "معلومات مؤكدة", partial: "معلومات جزئية" };
 const NETWORK_ERROR = "تعذّر الاتصال بالخادم. تأكد من تشغيله ثم أعد المحاولة.";
 
-const WELCOME =
-  "مرحباً بك في دليل. اسألني عن إجراءات الخدمات الحكومية — " +
-  "مثل تجديد جواز السفر أو البطاقة الشخصية أو السجل التجاري.";
+// ترميز القطاعات: الفهرس لا يحمل حقل قطاع، فتُوزَّع الألوان بالترتيب
+// حتى يبقى للجهة لون ثابت يتعرّف عليه المستخدم.
+const SECTORS = ["#0f7b78", "#8a5410", "#33608f", "#6d4b8f", "#9e3b32"];
+
+const AR_DIGITS = ["٠", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩"];
+const toArabicDigits = (value) =>
+  String(value).replace(/\d/g, (d) => AR_DIGITS[Number(d)]);
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function icon(paths, size) {
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "1.6");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("aria-hidden", "true");
+  if (size) { svg.setAttribute("width", size); svg.setAttribute("height", size); }
+  paths.forEach((d) => {
+    const p = document.createElementNS(NS, "path");
+    p.setAttribute("d", d);
+    svg.appendChild(p);
+  });
+  return svg;
 }
 
 function scrollToEnd() {
@@ -58,59 +73,7 @@ function bubble(role) {
   return node;
 }
 
-// --- loading state -------------------------------------------------------
-// Three things move together, so they live in one place: the placeholder
-// bubble, the composer lock, and aria-busy for screen readers. Answers take
-// seconds, and a silent page during those seconds reads as broken.
-function setBusy(state) {
-  busy = state;
-  sendBtn.disabled = state;
-  inputEl.disabled = state;
-  messagesEl.setAttribute("aria-busy", state ? "true" : "false");
-}
-
-// The pipeline always runs in this order: L1 and retrieval first, then one
-// LLM call. Measured on the live app — routing lands around 0.4-0.9s and
-// generation takes 4-7s — so these labels describe what is genuinely
-// happening at the moment they appear.
-//
-// They are NOT progress. The server sends one response at the end and
-// nothing in between, so claiming a percentage here would be inventing it.
-const THINKING_PHASES = [
-  { after: 0, label: "يبحث في المصادر الرسمية…" },
-  { after: 1400, label: "يصيغ الإجابة من المصادر…" },
-  { after: 9000, label: "الإجابة تستغرق وقتاً أطول من المعتاد…" },
-];
-
-function showLoading() {
-  const node = bubble("bot");
-  const wrap = el("div", "loading");
-  const dots = el("span", "typing");
-  dots.append(el("span"), el("span"), el("span"));
-  const label = el("span", "loading__label", THINKING_PHASES[0].label);
-  wrap.append(dots, label);
-  node.appendChild(wrap);
-  scrollToEnd();
-
-  // Advance the wording as the request goes on. Cleared by whatever
-  // replaces this node, so a fast answer never shows the later phases.
-  const started = Date.now();
-  const timers = THINKING_PHASES.slice(1).map((phase) =>
-    setTimeout(() => {
-      label.textContent = phase.label;
-      if (phase.after >= 9000) wrap.classList.add("loading--slow");
-    }, phase.after - (Date.now() - started))
-  );
-  node._stopThinking = () => timers.forEach(clearTimeout);
-  return node;
-}
-
-// --- theme -----------------------------------------------------------------
-//
-// Three states, not two. "system" is the default and follows the OS; the
-// toggle writes an explicit light or dark that outranks it. The <head> script
-// applies a saved value before first paint so the page never flashes the
-// wrong palette.
+/* ------------------------------------------------------------------ السمة */
 
 function currentTheme() {
   const stamped = document.documentElement.getAttribute("data-theme");
@@ -127,117 +90,87 @@ function labelTheme(theme) {
 
 function setTheme(theme) {
   document.documentElement.setAttribute("data-theme", theme);
-  try {
-    localStorage.setItem("daleel-theme", theme);
-  } catch (error) {
-    // Private mode. The choice still applies for this visit.
-  }
+  try { localStorage.setItem("daleel-theme", theme); } catch (e) {}
   labelTheme(theme);
 }
 
 themeBtn.addEventListener("click", () => {
   setTheme(currentTheme() === "dark" ? "light" : "dark");
 });
-
-// Label only — deliberately NOT setTheme(). Calling it here would write the
-// current scheme to storage on every page load, which silently converts
-// "follow my system" into a permanent choice the visitor never made.
 labelTheme(currentTheme());
 
-// --- mobile navigation -----------------------------------------------------
+/* --------------------------------------------------- طي الشريطين وفتحهما */
+//
+// سطح المكتب: الشريط يتقلّص إلى شريحة رأسية (index-folded / src-folded).
+// الجوال: الشريط لوحة منزلقة فوق المحتوى (index-open / src-open).
+// الحالة تُحفظ في localStorage حتى تبقى كما تركها المستخدم.
 
-function closeNav() {
-  navEl.classList.remove("is-open");
-  navBtn.setAttribute("aria-expanded", "false");
+const isMobile = () => window.matchMedia("(max-width: 960px)").matches;
+
+function syncFoldButtons() {
+  document.querySelectorAll("[data-fold]").forEach((btn) => {
+    const key = btn.dataset.fold;
+    const folded = shellEl.classList.contains(`${key}-folded`);
+    const inStrip = Boolean(btn.closest(".rail__strip"));
+    btn.setAttribute("aria-expanded", folded ? "false" : "true");
+    const name = key === "index" ? "الفهرس" : "السند";
+    btn.setAttribute("aria-label", (inStrip ? "فتح " : "طي ") + name);
+  });
 }
 
-navBtn.addEventListener("click", () => {
-  const open = navEl.classList.toggle("is-open");
-  navBtn.setAttribute("aria-expanded", open ? "true" : "false");
-});
-// Tapping a link should navigate AND dismiss; leaving the panel open over
-// the section it just scrolled to is the classic mobile-menu bug.
-navEl.addEventListener("click", (event) => {
-  if (event.target.closest(".nav__link")) closeNav();
-});
-document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") closeNav();
-});
-
-// --- where the composer lives ----------------------------------------------
-//
-// Before the first question it belongs inside the hero, because the input IS
-// the product. Afterwards it pins to the bottom, because the conversation is.
-//
-// The form ELEMENT moves rather than being duplicated: one form means the
-// submit handler, the disabled state and focus all keep working, and there is
-// never a second stale input on the page.
-
-function placeComposer() {
-  const target = shellEl.classList.contains("is-chatting")
-    ? shellEl
-    : heroSlotEl;
-  if (formEl.parentElement === target) return;
-  if (target === shellEl) shellEl.insertBefore(formEl, disclaimerEl);
-  else target.appendChild(formEl);
-}
-
-// --- chat allowance meter ------------------------------------------------
-//
-// A bar and a percentage, nothing else. The figure is the share of the
-// allowance CONSUMED, which is what the bar fills — so both halves say the
-// same thing and an empty bar means plenty left.
-//
-// Numbers come from the rate limiter's own storage, so the meter agrees
-// with what the server enforces. The exact counts moved into the tooltip
-// when the labels came off.
-
-function renderQuota(quota) {
-  if (!quota || !quota.limit) {
-    quotaEl.hidden = true;
-    return;
-  }
-  quotaEl.hidden = false;
-
-  const pct = Math.max(0, Math.min(100, quota.percent_used));
-  quotaPctEl.textContent = `${pct}%`;
-  quotaFillEl.style.width = `${pct}%`;
-
-  const track = quotaFillEl.parentElement;
-  track.setAttribute("aria-valuenow", String(pct));
-  // The counts are no longer on screen, so the tooltip is where they live.
-  // Set on the whole meter, not just the track, so hovering the percentage
-  // reveals it too.
-  quotaEl.title =
-    quota.remaining > 0
-      ? `${quota.remaining} من ${quota.limit} رسالة متبقية في هذه الدقيقة`
-      : "انتهت الرسائل المتاحة — تتجدد خلال ثوانٍ";
-
-  // Warn before the limit bites rather than after.
-  quotaEl.classList.toggle("quota--warn", quota.remaining <= 5 && quota.remaining > 0);
-  quotaEl.classList.toggle("quota--spent", quota.remaining === 0);
-}
-
-async function refreshQuota() {
+function setFolded(key, folded) {
+  shellEl.classList.toggle(`${key}-folded`, folded);
   try {
-    const response = await fetch("/usage");
-    if (response.ok) renderQuota(await response.json());
-  } catch (error) {
-    // The meter is a convenience. Losing it must never surface as an error
-    // in a conversation, so this stays silent and the bar stays hidden.
-  }
+    localStorage.setItem(`daleel-rail-${key}`, folded ? "folded" : "open");
+  } catch (e) {}
+  syncFoldButtons();
 }
 
-// --- markdown subset -----------------------------------------------------
-// The model may emit "- item", "1. step", and **bold**. Everything is built
-// as real DOM nodes, never innerHTML: the text is model output and must not
-// be able to inject markup. A full markdown library would be a dependency
-// for three constructs, and this project is kept deliberately small.
+function setMobilePanel(key) {
+  const open = key && !shellEl.classList.contains(`${key}-open`);
+  shellEl.classList.remove("index-open", "src-open");
+  if (open) shellEl.classList.add(`${key}-open`);
+  document.querySelectorAll("[data-mobile]").forEach((btn) => {
+    const target = btn.dataset.mobile;
+    const active = open ? target === key : target === "ask";
+    btn.classList.toggle("is-active", active);
+  });
+}
+
+document.querySelectorAll("[data-fold]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const key = btn.dataset.fold;
+    if (isMobile()) setMobilePanel(key);
+    else setFolded(key, !shellEl.classList.contains(`${key}-folded`));
+  });
+});
+
+document.querySelectorAll("[data-mobile]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const target = btn.dataset.mobile;
+    if (target === "ask") { setMobilePanel(null); inputEl.focus(); }
+    else setMobilePanel(target);
+  });
+});
+
+scrimEl.addEventListener("click", () => setMobilePanel(null));
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") setMobilePanel(null);
+});
+
+// استعادة ما حُفظ (الوسم على <html> كُتب في الرأس قبل أول رسم).
+(function restoreRails() {
+  const stamped = document.documentElement.getAttribute("data-rails") || "";
+  stamped.split(/\s+/).filter(Boolean).forEach((cls) => shellEl.classList.add(cls));
+  syncFoldButtons();
+})();
+
+/* -------------------------------------------------- تحويل نص الإجابة (markdown) */
+// النموذج قد يُصدر "- عنصر" و"1. خطوة" و**عريض** فقط. كله يُبنى عُقَداً
+// حقيقية، لا innerHTML: النص مُخرَج نموذج ولا يجوز أن يحقن وسماً.
 
 function appendInline(parent, text) {
-  // Split on **bold** and emit alternating text / <strong> nodes.
-  const parts = String(text).split(/\*\*(.+?)\*\*/g);
-  parts.forEach((part, i) => {
+  String(text).split(/\*\*(.+?)\*\*/g).forEach((part, i) => {
     if (!part) return;
     if (i % 2 === 1) parent.appendChild(el("strong", null, part));
     else parent.appendChild(document.createTextNode(part));
@@ -246,16 +179,13 @@ function appendInline(parent, text) {
 
 function renderMarkdown(text) {
   const wrap = el("div", "answer__body");
-  const lines = String(text || "").split("\n");
   let list = null;
 
-  const closeList = () => { list = null; };
-
-  lines.forEach((raw) => {
+  String(text || "").split("\n").forEach((raw) => {
     const line = raw.trim();
-    if (!line) { closeList(); return; }
+    if (!line) { list = null; return; }
 
-    const bullet = line.match(/^[-•*]\s+(.*)$/);
+    const bullet   = line.match(/^[-•*]\s+(.*)$/);
     const numbered = line.match(/^(\d+)[.)]\s+(.*)$/);
 
     if (bullet || numbered) {
@@ -265,12 +195,12 @@ function renderMarkdown(text) {
         wrap.appendChild(list);
       }
       const li = el("li");
-      appendInline(li, (bullet ? bullet[1] : numbered[2]));
+      appendInline(li, bullet ? bullet[1] : numbered[2]);
       list.appendChild(li);
       return;
     }
 
-    closeList();
+    list = null;
     const p = el("p", "answer__p");
     appendInline(p, line);
     wrap.appendChild(p);
@@ -279,86 +209,122 @@ function renderMarkdown(text) {
   return wrap;
 }
 
-// A citizen must be able to tell an official ministry page from a blog at a
-// glance. The corpus now accepts arbitrary URLs via the scraper, so the two
-// must not render identically.
-//
-// Derived from source_url here in the browser rather than from a backend
-// field, deliberately: it needs no change to the request path, and the URL
-// is already on every card.
-function sourceBadge(url) {
-  let host = "";
-  try {
-    host = new URL(url).hostname.toLowerCase();
-  } catch (error) {
-    return null;
-  }
-  const official = host === "gov.om" || host.endsWith(".gov.om");
+/* ------------------------------------------------------------ وسم المصدر */
+
+function hostOf(url) {
+  try { return new URL(url).hostname.toLowerCase(); } catch (e) { return ""; }
+}
+
+function isOfficial(url) {
+  const host = hostOf(url);
+  return host === "gov.om" || host.endsWith(".gov.om");
+}
+
+function sourceFlag(url) {
+  if (!hostOf(url)) return null;
+  const official = isOfficial(url);
   const badge = el(
     "span",
     "srcflag " + (official ? "srcflag--gov" : "srcflag--other"),
     official ? "مصدر حكومي رسمي" : "مصدر غير حكومي"
   );
-  badge.title = host;
+  badge.title = hostOf(url);
   return badge;
 }
 
-function sourcesBlock(data) {
-  // Retrieval can span several services, so an answer can legitimately have
-  // more than one citation. Rendered as a list rather than a single line.
-  const list = (data.sources && data.sources.length)
-    ? data.sources
-    : (data.source_url || data.source_title
-        ? [{ url: data.source_url, title: data.source_title,
-             ref: data.source_title, service: data.service_name,
-             authority: data.authority }]
-        : []);
-  if (!list.length) return null;
-
-  const box = el("div", "card__source");
-  box.appendChild(el("div", "card__source-label",
-    list.length > 1 ? "المصادر:" : "المصدر:"));
-
-  list.forEach((src) => {
-    const row = el("div", "card__source-row");
-    const flag = sourceBadge(src.url);
-    if (flag) row.appendChild(flag);
-
-    const label = [src.authority, src.service].filter(Boolean).join(" — ")
-      || src.title || src.ref || src.url;
-
-    if (src.url) {
-      const link = el("a", null, label);
-      link.href = src.url;
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      row.appendChild(link);
-    } else {
-      // Textual attribution: a printed guide or a PDF with no live page.
-      // Not clickable, still honest about where the answer came from.
-      row.appendChild(el("span", "card__source-ref", label));
-    }
-    box.appendChild(row);
-  });
-  return box;
+function sourceList(data) {
+  if (data.sources && data.sources.length) return data.sources;
+  if (data.source_url || data.source_title) {
+    return [{
+      url: data.source_url, title: data.source_title, ref: data.source_title,
+      service: data.service_name, authority: data.authority,
+    }];
+  }
+  return [];
 }
 
-// --- typing the answer out -----------------------------------------------
-//
-// This animates text the server has ALREADY sent in full. That is not a
-// limitation worked around; it is required.
-//
-// Generation and the L3 grounding check happen in the same call, and
-// app.py inspects the finished answer: `confidence == "none"` turns it into
-// a refusal. Streaming tokens as the model produced them would put an
-// unvalidated government answer on screen and then need to retract it —
-// showing a citizen a fee and taking it back is worse than a short wait.
-//
-// So the text is validated, then revealed. Structure is built first, which
-// also means no reflow as it types: lists and bold are already in place.
+function sourceLabel(src) {
+  return [src.authority, src.service].filter(Boolean).join(" — ")
+    || src.title || src.ref || src.url || "مصدر";
+}
 
-const TYPING_TARGET_MS = 1600;   // long answers speed up rather than drag
-const TYPING_MIN_CPS = 45;       // ...but short ones stay readable
+/* ------------------------------------------------------- شريط السند (اليسار) */
+
+function renderEvidence(data) {
+  const list = sourceList(data);
+  srcBodyEl.textContent = "";
+
+  if (!list.length) {
+    srcNoteEl.textContent = "لا سند";
+    foldSrcEl.hidden = true;
+    const empty = el("div", "srchint",
+      "لا توجد بطاقة سند لهذا السؤال. ما لا سند له يُعرض تحفّظاً لا إجابة.");
+    srcBodyEl.appendChild(empty);
+    return;
+  }
+
+  srcNoteEl.textContent = list.length === 1 ? "مصدر واحد"
+    : list.length === 2 ? "مصدران"
+    : `${toArabicDigits(list.length)} مصادر`;
+  foldSrcEl.hidden = false;
+  foldSrcEl.textContent = toArabicDigits(list.length);
+
+  list.forEach((src, index) => {
+    const card = el("div", "srccard");
+
+    const head = el("div", "srccard__head");
+    head.appendChild(el("span", "srccard__num", toArabicDigits(index + 1)));
+    head.appendChild(el("span", "srccard__auth", src.authority || sourceLabel(src)));
+    if (src.url) head.appendChild(el("span", "srccard__kind", "الموقع الرسمي"));
+    card.appendChild(head);
+
+    const body = el("div", "srccard__body");
+    if (src.service) body.appendChild(el("div", "srccard__svc", src.service));
+    // المقتطف يُعرض حين يرسله الخادم (حقل quote أو snippet). وإلا فعنوان المصدر.
+    const quote = src.quote || src.snippet;
+    if (quote) body.appendChild(el("p", "srccard__quote", `«${quote}»`));
+    else if (src.title) body.appendChild(el("p", "srccard__quote", src.title));
+
+    const foot = el("div", "srccard__foot");
+    const flag = sourceFlag(src.url);
+    if (flag) foot.appendChild(flag);
+    if (src.url) {
+      const open = el("a", "srccard__open", "افتح المصدر");
+      open.href = src.url;
+      open.target = "_blank";
+      open.rel = "noopener noreferrer";
+      foot.appendChild(open);
+    }
+    if (foot.childNodes.length) body.appendChild(foot);
+
+    card.appendChild(body);
+    srcBodyEl.appendChild(card);
+  });
+
+  // حالة الإجابة: تُعرض التسمية التي يرسلها الخادم، لا نسبة مُختلقة.
+  if (data.confidence && CONF_LABEL[data.confidence]) {
+    const state = el("div", "srcstate");
+    state.appendChild(el("div", "srcstate__label", CONF_LABEL[data.confidence]));
+    state.appendChild(el("p", "srcstate__note",
+      "الجهة المختصة هي المرجع النهائي لأي متطلب أو رسم."));
+    srcBodyEl.appendChild(state);
+  }
+}
+
+function resetEvidence(message) {
+  srcBodyEl.textContent = "";
+  srcNoteEl.textContent = message || "بانتظار سؤال";
+  foldSrcEl.hidden = true;
+  srcBodyEl.appendChild(el("div", "srchint",
+    "تظهر هنا بطاقة لكل مصدر استندت إليه الإجابة، مع الجهة ونوع المصدر ورابطه."));
+}
+
+/* ----------------------------------------------------------- كتابة الإجابة */
+// النص وصل كاملاً ومُتحقَّقاً منه؛ هذا كشف تدريجي لا بثّ حيّ. عرض رسم حكومي
+// ثم سحبه أسوأ من انتظار قصير.
+
+const TYPING_TARGET_MS = 1600;
+const TYPING_MIN_CPS   = 45;
 
 function textNodesOf(root) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
@@ -369,11 +335,10 @@ function textNodesOf(root) {
 
 function typeOut(container, onDone) {
   const nodes = textNodesOf(container);
-  const full = nodes.map((n) => n.nodeValue);
+  const full  = nodes.map((n) => n.nodeValue);
   const total = full.reduce((sum, t) => sum + t.length, 0);
 
-  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (reduced || !total) {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || !total) {
     onDone();
     return () => {};
   }
@@ -385,9 +350,7 @@ function typeOut(container, onDone) {
     Math.ceil(total / (TYPING_TARGET_MS / 16)),
     Math.ceil(TYPING_MIN_CPS / 60)
   );
-  let shown = 0;
-  let frame = null;
-  let done = false;
+  let shown = 0, frame = null, done = false;
 
   function finish() {
     if (done) return;
@@ -399,10 +362,7 @@ function typeOut(container, onDone) {
     onDone();
   }
 
-  // requestAnimationFrame does not run in a background tab, and stops
-  // entirely under some automation. Without this the answer could sit half
-  // revealed — a government fee cut off mid-sentence — so a timer that does
-  // keep running guarantees the whole text arrives.
+  // requestAnimationFrame يتوقف في التبويب الخلفي؛ هذا المؤقّت يضمن وصول النص.
   const safety = setTimeout(finish, TYPING_TARGET_MS * 3);
 
   function step() {
@@ -410,29 +370,102 @@ function typeOut(container, onDone) {
     let left = shown;
     for (let i = 0; i < nodes.length; i++) {
       const text = full[i];
-      if (left >= text.length) {
-        nodes[i].nodeValue = text;
-        left -= text.length;
-      } else {
-        nodes[i].nodeValue = text.slice(0, left);
-        left = 0;
-      }
+      if (left >= text.length) { nodes[i].nodeValue = text; left -= text.length; }
+      else { nodes[i].nodeValue = text.slice(0, left); left = 0; }
     }
     scrollToEnd();
     if (shown < total) frame = requestAnimationFrame(step);
     else finish();
   }
   frame = requestAnimationFrame(step);
-  return finish;      // callable to skip
+  return finish;
+}
+
+/* --------------------------------------------------------- عرض أنواع الردود */
+
+const THINKING_PHASES = [
+  { after: 0,    label: "يبحث في المصادر الرسمية…" },
+  { after: 1400, label: "يصيغ الإجابة من المصادر…" },
+  { after: 9000, label: "الإجابة تستغرق وقتاً أطول من المعتاد…" },
+];
+
+function setBusy(state) {
+  busy = state;
+  sendBtn.disabled = state;
+  inputEl.disabled = state;
+  messagesEl.setAttribute("aria-busy", state ? "true" : "false");
+}
+
+function showLoading() {
+  const node = bubble("bot");
+  const wrap = el("div", "loading");
+  const dots = el("span", "typing");
+  dots.append(el("span"), el("span"), el("span"));
+  const label = el("span", "loading__label", THINKING_PHASES[0].label);
+  wrap.append(dots, label);
+  node.appendChild(wrap);
+  scrollToEnd();
+
+  const started = Date.now();
+  const timers = THINKING_PHASES.slice(1).map((phase) =>
+    setTimeout(() => {
+      label.textContent = phase.label;
+      if (phase.after >= 9000) wrap.classList.add("loading--slow");
+    }, phase.after - (Date.now() - started))
+  );
+  node._stopThinking = () => timers.forEach(clearTimeout);
+  return node;
+}
+
+function crumbs(data) {
+  if (!data.authority && !data.service_name) return null;
+  const row = el("div", "crumbs");
+  if (data.authority) row.appendChild(el("span", null, data.authority));
+  if (data.authority && data.service_name) {
+    row.appendChild(el("span", "crumbs__sep", "◂"));
+  }
+  if (data.service_name) row.appendChild(el("span", "crumbs__now", data.service_name));
+  return row;
+}
+
+function cardSources(data) {
+  const list = sourceList(data);
+  if (!list.length) return null;
+
+  const box = el("div", "card__source");
+  box.appendChild(el("div", "card__source-label",
+    list.length > 1 ? "المصادر" : "المصدر"));
+
+  list.forEach((src, index) => {
+    const row = el("div", "card__source-row");
+    row.appendChild(el("span", "card__source-num", toArabicDigits(index + 1)));
+    const flag = sourceFlag(src.url);
+    if (flag) row.appendChild(flag);
+
+    if (src.url) {
+      const link = el("a", null, sourceLabel(src));
+      link.href = src.url;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      row.appendChild(link);
+    } else {
+      row.appendChild(el("span", "card__source-ref", sourceLabel(src)));
+    }
+    box.appendChild(row);
+  });
+  return box;
 }
 
 function renderAnswer(node, data) {
-  node.innerHTML = "";
+  node.textContent = "";
+  const trail = crumbs(data);
+  if (trail) node.appendChild(trail);
+
   const card = el("div", "card");
 
   const head = el("div", "card__head");
   if (data.service_name) head.appendChild(el("div", "card__service", data.service_name));
-  if (data.authority) head.appendChild(el("div", "card__authority", data.authority));
+  if (data.authority)    head.appendChild(el("div", "card__authority", data.authority));
   if (data.confidence && CONF_LABEL[data.confidence]) {
     head.appendChild(el("span", "conf conf--" + data.confidence, CONF_LABEL[data.confidence]));
   }
@@ -442,30 +475,18 @@ function renderAnswer(node, data) {
   card.appendChild(body);
   node.appendChild(card);
 
-  // Every answer carries its source. This is the visible half of "how do
-  // you know it isn't hallucinating" — and it comes from the corpus, never
-  // from the model.
-  //
-  // Held back until the text finishes so the citation lands under a
-  // complete answer, never beside a half-written one.
+  // الاستشهاد لا يظهر إلا بعد اكتمال النص، حتى لا يجاور إجابة نصف مكتوبة.
   const reveal = typeOut(body, () => {
-    const sources = sourcesBlock(data);
-    if (sources) {
-      card.appendChild(sources);
-      scrollToEnd();
-    }
+    const sources = cardSources(data);
+    if (sources) { card.appendChild(sources); scrollToEnd(); }
   });
 
-  // Nobody should have to watch an animation to read a government fee.
-  const skip = () => {
-    reveal();
-    card.removeEventListener("click", skip);
-  };
+  const skip = () => { reveal(); card.removeEventListener("click", skip); };
   card.addEventListener("click", skip);
 }
 
 function renderClarify(node, data) {
-  node.innerHTML = "";
+  node.textContent = "";
   node.appendChild(el("div", "msg__text", data.reply));
 
   const options = el("div", "options");
@@ -473,8 +494,6 @@ function renderClarify(node, data) {
     const btn = el("button", "option", option.label_ar);
     btn.type = "button";
     btn.addEventListener("click", () => {
-      // Disable the whole group: the question has been answered, and a
-      // second tap would ask the same thing again.
       options.querySelectorAll("button").forEach((b) => (b.disabled = true));
       send(option.label_ar, option.service_id);
     });
@@ -484,7 +503,7 @@ function renderClarify(node, data) {
 }
 
 function renderReply(node, data) {
-  node.classList.remove("msg--refusal");
+  node.classList.remove("msg--refusal", "msg--error");
 
   if (data.format === "answer" || data.format === "card") {
     renderAnswer(node, data);
@@ -492,44 +511,43 @@ function renderReply(node, data) {
     clarifyCount += 1;
     renderClarify(node, data);
   } else {
-    // prose and refusal
-    node.innerHTML = "";
+    node.textContent = "";
     if (data.format === "refusal") node.classList.add("msg--refusal");
     node.appendChild(el("div", "msg__text", data.reply || data.text || ""));
     if (data.format === "prose") {
-      const sources = sourcesBlock(data);
+      const sources = cardSources(data);
       if (sources) node.appendChild(sources);
     }
   }
 
   if (typeof data.answer_time === "number") {
-    node.appendChild(el("div", "msg__meta", `أُجيب خلال ${data.answer_time} ثانية`));
+    node.appendChild(el("div", "msg__meta",
+      `أُجيب خلال ${toArabicDigits(data.answer_time)} ثانية`));
   }
+
+  // شريط السند يتبع آخر رد دائماً.
+  if (data.format === "clarify") resetEvidence("بانتظار تحديد الخدمة");
+  else renderEvidence(data);
+
+  markCurrentService(data.service_name);
   scrollToEnd();
 }
 
-// --- error state ---------------------------------------------------------
-// Distinct from a refusal: a refusal is an answer ("I have no grounded
-// source for that"), a failure is the request not completing. Retry replays
-// the same history, so nothing is retyped and no turn is duplicated.
 function renderError(node, message, serviceId) {
-  node.innerHTML = "";
+  node.textContent = "";
   node.classList.remove("msg--refusal");
   node.classList.add("msg--error");
   node.appendChild(el("div", "msg__text", message));
 
-  const btn = el("button", "retry", "إعادة المحاولة");
+  const btn = el("button", "retry", "أعد المحاولة");
   btn.type = "button";
-  btn.addEventListener("click", () => {
-    node.remove();
-    deliver(serviceId);
-  });
+  btn.addEventListener("click", () => { node.remove(); deliver(serviceId); });
   node.appendChild(btn);
   scrollToEnd();
 }
 
-// One turn against the backend, using whatever is already in `history`.
-// Kept separate from send() so retry does not re-append the user's message.
+/* ------------------------------------------------------------ دورة الطلب */
+
 async function deliver(serviceId) {
   if (busy) return;
   setBusy(true);
@@ -547,31 +565,17 @@ async function deliver(serviceId) {
     });
 
     let data = null;
-    try {
-      data = await response.json();
-    } catch (parseError) {
-      data = null;
-    }
+    try { data = await response.json(); } catch (e) { data = null; }
 
-    // Rate limits (429) and stage failures (500) still arrive as Arabic
-    // JSON, so their text is shown as-is — but as a failure with a retry,
-    // not as an answer.
+    if (placeholder._stopThinking) placeholder._stopThinking();
+
+    // 429 و500 يصلان نصاً عربياً من الخادم: يُعرض كما هو، لكن كفشل مع إعادة محاولة.
     if (!response.ok) {
-      if (placeholder._stopThinking) placeholder._stopThinking();
-      // A 429 is exactly when the meter matters most, so refresh it even
-      // though the request itself failed.
-      if (response.status === 429) refreshQuota();
       renderError(placeholder, (data && data.reply) || NETWORK_ERROR, serviceId);
       return;
     }
 
-    if (placeholder._stopThinking) placeholder._stopThinking();
-    renderQuota(data.quota);
     renderReply(placeholder, data);
-
-    // Only the visible reply goes back into the history. Card fields do
-    // not: re-feeding a rendered checklist as conversational text invites
-    // the model to treat its own earlier output as grounding.
     history.push({
       role: "assistant",
       content: data.reply || data.text || data.service_name || "",
@@ -588,13 +592,10 @@ async function deliver(serviceId) {
 function send(text, serviceId) {
   if (busy) return;
 
-  // The hero has done its job the moment a conversation starts.
   if (!shellEl.classList.contains("is-chatting")) {
     shellEl.classList.add("is-chatting");
-    placeComposer();
-    const greeting = bubble("bot");
-    greeting.appendChild(el("div", "msg__text", WELCOME));
   }
+  if (isMobile()) setMobilePanel(null);
 
   const userNode = bubble("user");
   userNode.appendChild(el("div", "msg__text", text));
@@ -610,77 +611,45 @@ formEl.addEventListener("submit", (event) => {
   if (text) send(text, null);
 });
 
-heroEl.querySelectorAll(".chip").forEach((chip) => {
-  chip.addEventListener("click", () => send(chip.dataset.q, null));
-});
+/* ---------------------------------------------------------------- الفهرس */
 
-// --- browse: authorities and their services ------------------------------
-// The coverage map, rendered. Every name here came from
-// data/registry/authorities.json via registry.browse_directory() — nothing
-// in this file knows the name of a single ministry.
-//
-// Tapping a service enters the SAME chat flow as typing, with its
-// service_id attached: the citizen picked that service by name, so the
-// backend loads the whole service rather than guessing by similarity.
-// That is the existing tapped-option contract, reused as-is.
-
-const directoryEl = document.getElementById("directory");
-const dirDataEl = document.getElementById("directory-data");
-const dirListEl = document.getElementById("directory-list");
-const dirSearchEl = document.getElementById("directory-search");
-const dirEmptyEl = document.getElementById("directory-empty");
-const dirMetaEl = document.getElementById("directory-meta");
-
-// Arabic counted nouns: 1 singular, 2 dual, 3-10 plural, 11+ singular
-// again. «8 خدمة» is wrong in a way every Arabic reader notices.
 function arabicCount(n, forms) {
   if (n === 1) return forms.one;
   if (n === 2) return forms.two;
-  return `${n} ${n <= 10 ? forms.few : forms.many}`;
+  return `${toArabicDigits(n)} ${n <= 10 ? forms.few : forms.many}`;
 }
-const SERVICE_WORDS = { one: "خدمة واحدة", two: "خدمتان", few: "خدمات", many: "خدمة" };
+const SERVICE_WORDS   = { one: "خدمة واحدة", two: "خدمتان", few: "خدمات", many: "خدمة" };
 const AUTHORITY_WORDS = { one: "جهة واحدة", two: "جهتان", few: "جهات", many: "جهة" };
 
-// A REDUCED mirror of the folding in rag/arabic.py, applied to the search
-// box only. The registry side of every comparison was normalized in Python
-// by normalize_arabic() itself, so this only has to fold what a citizen may
-// type: diacritics, tatweel, the alef family, ة/ى, and Arabic-Indic digits.
-//
-// It is deliberately NOT on the retrieval path. normalize_arabic() is the
-// one function both sides of embedding call; a browser copy of it could
-// drift and silently degrade retrieval, so this one filters a visible list
-// and nothing else.
+// مرآة مُصغَّرة لطيّ الحروف في rag/arabic.py — لصندوق البحث وحده، لا لمسار
+// الاسترجاع: نسخة في المتصفّح قد تنحرف وتُفسد الاسترجاع بصمت.
 const AR_FOLD = { "أ": "ا", "إ": "ا", "آ": "ا", "ٱ": "ا", "ة": "ه", "ى": "ي" };
 
 function normalizeQuery(text) {
   return (text || "")
     .normalize("NFKC")
-    .replace(/[ً-ْٰۖ-ۭـ]/g, "")
-    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[\u064B-\u0652\u0670\u0656-\u065F\u0640]/g, "")
+    .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
     .replace(/[أإآٱةى]/g, (c) => AR_FOLD[c])
     .replace(/\s+/g, " ")
     .trim()
     .toLowerCase();
 }
 
-// Open/closed state lives in a class rather than in the `hidden` attribute,
-// because `hidden` is display:none and display cannot be transitioned. The
-// CSS animates the panel with grid-template-rows 0fr -> 1fr (so it grows to
-// exactly its own content height, even after the filter changes how many
-// rows are in it) and uses `visibility` to keep a closed panel out of the
-// tab order and the accessibility tree — the job `hidden` was doing.
-//
-// aria-expanded still carries the state for assistive tech, unchanged.
+const dirDataEl   = document.getElementById("directory-data");
+const dirListEl   = document.getElementById("directory-list");
+const dirSearchEl = document.getElementById("directory-search");
+const dirEmptyEl  = document.getElementById("directory-empty");
+
+let dirEntries = [];
+
 function setExpanded(entry, expanded) {
   entry.card.classList.toggle("is-open", expanded);
   entry.head.setAttribute("aria-expanded", expanded ? "true" : "false");
 }
+const isExpanded = (entry) => entry.card.classList.contains("is-open");
 
-function isExpanded(entry) {
-  return entry.card.classList.contains("is-open");
-}
-
-function buildAuthority(authority) {
+function buildAuthority(authority, index) {
   const card = el("article", "auth");
   const panelId = `services-${authority.id}`;
 
@@ -688,43 +657,40 @@ function buildAuthority(authority) {
   head.type = "button";
   head.setAttribute("aria-expanded", "false");
   head.setAttribute("aria-controls", panelId);
-  head.appendChild(el("span", "auth__name", authority.name_ar));
-  head.appendChild(
-    el("span", "auth__count", arabicCount(authority.services.length, SERVICE_WORDS))
-  );
-  const chev = el("span", "auth__chev", "▾");
-  chev.setAttribute("aria-hidden", "true");
-  head.appendChild(chev);
+
+  const bar = el("span", "auth__bar");
+  bar.style.setProperty("--sector", SECTORS[index % SECTORS.length]);
+  bar.setAttribute("aria-hidden", "true");
+
+  const label = el("span", "auth__label");
+  label.appendChild(el("span", "auth__name", authority.name_ar));
+  label.appendChild(el("span", "auth__count",
+    arabicCount(authority.services.length, SERVICE_WORDS)));
+  const chev = icon(["m6 9 6 6 6-6"]);
+  chev.setAttribute("class", "auth__chev");
+  label.appendChild(chev);
+
+  head.append(bar, label);
 
   const panel = el("div", "auth__panel");
   panel.id = panelId;
+  const inner = el("div", "auth__inner");   // طبقة واحدة فقط: الشبكة تتحرّك 0fr→1fr
 
-  // Single wrapper inside the panel, and it has to stay single: the panel is
-  // the animating grid, and a second child would land in an implicit row
-  // that the 0fr collapse does not cover — the list would clip while the
-  // portal link stayed visible.
-  const inner = el("div", "auth__inner");
-
-  const list = el("ul", "svclist");
-  const rows = authority.services.map((service, index) => {
+  const list = el("ul");
+  const rows = authority.services.map((service) => {
     const node = el("li", "svc");
-    // Staggers this row's entrance as the panel unfolds.
-    node.style.setProperty("--j", String(index));
     node.appendChild(el("span", "svc__name", service.name_ar));
-
-    const ask = el("button", "svc__ask", "اسأل عن هذه الخدمة");
+    const ask = el("button", "svc__ask", "اسأل");
     ask.type = "button";
     ask.title = `اسأل عن: ${service.name_ar}`;
+    // نفس عقد الخيار المنقور: الخدمة اختيرت بالاسم، فيُمرَّر service_id.
     ask.addEventListener("click", () => send(service.name_ar, service.service_id));
     node.appendChild(ask);
-
     list.appendChild(node);
     return { service, node };
   });
   inner.appendChild(list);
 
-  // The official portal, for the services this authority has that Daleel
-  // does not document yet.
   if (authority.portal_url) {
     const link = el("a", "auth__portal", "البوابة الرسمية للجهة");
     link.href = authority.portal_url;
@@ -741,93 +707,85 @@ function buildAuthority(authority) {
   return entry;
 }
 
-function initDirectory() {
-  if (!directoryEl || !dirDataEl) return;
-
-  let authorities = [];
-  try {
-    authorities = JSON.parse(dirDataEl.textContent) || [];
-  } catch (error) {
-    // A broken directory must not take the chat down with it: the composer
-    // above is the primary way in, and it does not depend on this list.
-    directoryEl.hidden = true;
-    return;
-  }
-  if (!authorities.length) {
-    directoryEl.hidden = true;
-    return;
-  }
-
-  const entries = authorities.map(buildAuthority);
-  entries.forEach((entry, index) => {
-    // --i drives the staggered entrance in CSS, so the grid assembles in
-    // sequence instead of ten cards landing on the same frame. Capped, or a
-    // future eleventh authority would wait most of a second to appear.
-    entry.card.style.setProperty("--i", String(Math.min(index, 11)));
-    dirListEl.appendChild(entry.card);
+function markCurrentService(name) {
+  if (!name) return;
+  dirEntries.forEach((entry) => {
+    let hit = false;
+    entry.rows.forEach((row) => {
+      const on = row.service.name_ar === name;
+      row.node.classList.toggle("is-current", on);
+      if (on) hit = true;
+    });
+    if (hit) setExpanded(entry, true);
   });
+}
 
-  const serviceTotal = authorities.reduce((sum, a) => sum + a.services.length, 0);
-  dirMetaEl.textContent =
-    `${arabicCount(authorities.length, AUTHORITY_WORDS)} · ` +
-    `${arabicCount(serviceTotal, SERVICE_WORDS)}`;
+function applyFilter(raw) {
+  const query = normalizeQuery(raw);
+  let visible = 0;
 
-  // Replaying the card entrance on every keystroke would flicker — «جواز» is
-  // four of them. So the animation is tied to the RESULT SET, not to typing:
-  // it replays only when which cards are visible actually changes.
-  let lastSignature = null;
+  dirEntries.forEach((entry) => {
+    // إصابة الجهة تعرض خدماتها كلها: من يبحث «شرطة عمان» يريد قائمتها كاملة.
+    const authorityHit = !query || String(entry.authority.search || "").includes(query);
+    let matches = 0;
 
-  function animateResultChange(signature) {
-    if (signature === lastSignature) return;
-    lastSignature = signature;
-    dirListEl.classList.remove("is-refiltered");
-    // One forced reflow. Without it the browser coalesces the remove+add
-    // into no change at all and the animation never restarts.
-    void dirListEl.offsetWidth;
-    dirListEl.classList.add("is-refiltered");
-  }
-
-  function applyFilter(raw) {
-    const query = normalizeQuery(raw);
-    let visible = 0;
-
-    entries.forEach((entry) => {
-      // An authority hit shows all of its services: someone searching
-      // «شرطة عمان» wants the ministry's whole list, not a filtered one.
-      const authorityHit = !query || entry.authority.search.includes(query);
-      let matches = 0;
-
-      entry.rows.forEach((row) => {
-        const hit = authorityHit || row.service.search.includes(query);
-        row.node.hidden = !hit;
-        if (hit) matches += 1;
-      });
-
-      const show = authorityHit || matches > 0;
-      entry.card.hidden = !show;
-      if (show) visible += 1;
-
-      // While searching, open every surviving card so the match is on
-      // screen without a second tap. Clearing the box restores the
-      // collapsed default rather than leaving ten cards open.
-      setExpanded(entry, Boolean(query) && show);
+    entry.rows.forEach((row) => {
+      const hit = authorityHit || String(row.service.search || "").includes(query);
+      row.node.hidden = !hit;
+      if (hit) matches += 1;
     });
 
-    dirEmptyEl.hidden = visible > 0;
-    animateResultChange(entries.map((e) => (e.card.hidden ? "0" : "1")).join(""));
+    const show = authorityHit || matches > 0;
+    entry.card.hidden = !show;
+    if (show) visible += 1;
+    setExpanded(entry, Boolean(query) && show);
+  });
+
+  dirEmptyEl.hidden = visible > 0;
+}
+
+function initDirectory() {
+  if (!dirDataEl || !dirListEl) return;
+
+  let authorities = [];
+  try { authorities = JSON.parse(dirDataEl.textContent) || []; } catch (e) { authorities = []; }
+  if (!authorities.length) {
+    dirEmptyEl.hidden = false;
+    dirEmptyEl.textContent = "لم يتم تحميل الفهرس.";
+    return;
   }
 
-  dirSearchEl.addEventListener("input", () => applyFilter(dirSearchEl.value));
-  // type="search" clears via Escape and the native ✕ without firing input
-  // in every browser.
+  dirEntries = authorities.map(buildAuthority);
+  dirEntries.forEach((entry) => dirListEl.appendChild(entry.card));
+
+  const serviceTotal = authorities.reduce((sum, a) => sum + a.services.length, 0);
+
+  // أرقام الترحيب والشريحة المطويّة تأتي من الفهرس نفسه، لا من ثابت في القالب.
+  const figAuth = document.getElementById("fig-auth");
+  const figSvc  = document.getElementById("fig-svc");
+  if (figAuth) figAuth.textContent = toArabicDigits(authorities.length);
+  if (figSvc)  figSvc.textContent  = toArabicDigits(serviceTotal);
+  if (foldIdxEl) foldIdxEl.textContent = toArabicDigits(serviceTotal);
+
+  // ترتيب بديل: الأكثر خدمات.
+  const sorted = dirEntries.slice().sort(
+    (a, b) => b.authority.services.length - a.authority.services.length
+  );
+  document.querySelectorAll("[data-sort]").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      document.querySelectorAll("[data-sort]").forEach((t) => {
+        t.classList.toggle("is-active", t === tab);
+        t.setAttribute("aria-selected", t === tab ? "true" : "false");
+      });
+      const order = tab.dataset.sort === "size" ? sorted : dirEntries;
+      order.forEach((entry) => dirListEl.appendChild(entry.card));
+    });
+  });
+
+  dirSearchEl.addEventListener("input",  () => applyFilter(dirSearchEl.value));
   dirSearchEl.addEventListener("search", () => applyFilter(dirSearchEl.value));
 }
 
 initDirectory();
-placeComposer();
-
-// Show the allowance before the first message, not after it. Deliberately
-// not awaited: the page is usable whether or not this lands.
-refreshQuota();
-
+resetEvidence();
 inputEl.focus();
