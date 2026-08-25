@@ -1,3 +1,4 @@
+# Entry point for the Daleel chatbot application.
 """
 Daleel — Arabic government-services assistant for Omani citizens.
 
@@ -311,3 +312,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+

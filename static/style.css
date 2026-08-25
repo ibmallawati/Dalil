@@ -1,148 +1,155 @@
 /* ==========================================================================
    دليل / Daleel — Arabic RTL interface.
 
-   The page is dir="rtl"; CSS logical properties (inline-start/end,
-   margin-inline, border-start-*, padding-inline) are used throughout, so
-   nothing is mirrored by hand and the same rules would work LTR.
+   Second redesign pass. The sidebar/ChatGPT-style shell from the first pass
+   read as too bare for what this product actually is — a government
+   services PORTAL with an assistant on top, not a bare chat window — so the
+   structure moved to a single scrolling column: a search-first hero, a
+   dense icon-led directory grid, and the conversation thread, with one
+   composer that lives in normal document flow and STICKS to the bottom of
+   the scroll region once there is enough content to push it there. No JS
+   re-parenting needed for that; see section 6.
 
-   --- Design direction ---------------------------------------------------
+   Palette: blue + white (a "digital government portal" register — trust,
+   official, high-contrast) replacing the previous green/gold Omani-seal
+   identity. The mark is a new abstract sparkle/compass-star glyph — not a
+   letterform — meant to read as "AI guide" rather than as a ministry seal.
 
-   An Omani government identity: white paper, deep green, warm sand, and
-   gold used as a hairline accent rather than a fill. Depth comes from
-   layered soft shadows and translucency, not from heavy borders.
-
-   --- The performance rule this file follows -----------------------------
-
-   Every animation moves `transform` or `opacity` only — the two properties
-   a compositor can handle without laying out or repainting. There are no
-   blur filters on moving elements, no box-shadow animations, no width/height
-   animations, and no infinite animations on anything the user is reading.
-   `backdrop-filter` is expensive, so it is limited to the two small fixed
-   strips (top bar, composer) and never applied to the ten authority cards.
+   CSS logical properties (inline-start/end, margin-inline, border-start-*)
+   are used throughout, so nothing is mirrored by hand.
 
    Sections:
-     1  tokens              8  authority cards + service rows
-     2  base + a11y         9  chat messages + answer card
-     3  ambient background 10  clarify / refusal / error
-     4  shell              11  loading indicator
-     5  top bar            12  composer + disclaimer
-     6  hero               13  keyframes
-     7  directory          14  responsive + reduced motion
+     1  tokens                8  answer card + citations
+     2  base + a11y           9  related-services follow-ups
+     3  app shell             10 clarify / refusal / error
+     4  topbar                11 loading indicator
+     5  hero + stats          12 keyframes
+     6  composer (sticky)     13 responsive + reduced motion
+     7  directory grid
    ========================================================================== */
 
 /* --- 1. tokens ---------------------------------------------------------- */
 :root {
-  /* paper + surfaces: warm whites, so the sand and gold read as intentional
-     rather than as a colour cast on a cold grey. */
-  --paper: #faf8f3;
+  --paper: #f5f8fd;
   --surface: #ffffff;
-  --surface-2: #f6f3ea;
-  --surface-3: #efeade;
-  --glass: rgba(255, 255, 255, .72);
-  --glass-2: rgba(255, 255, 255, .55);
-  /* The shell is deliberately NOT opaque: at .92-.97 white the ambient
-     shapes bleed through as a faint warmth instead of being trapped in the
-     desktop margins. A .22-alpha shape under a .92 veil contributes under
-     2% tint, so nothing measurable happens to text contrast. */
-  --shell-bg: linear-gradient(180deg, rgba(255, 255, 255, .92), rgba(255, 255, 255, .97));
+  --surface-2: #eef3fc;
+  --surface-3: #e3ebf9;
 
-  --border: #e7e0d0;
-  --border-strong: #d7cdb6;
+  --border: #dbe4f3;
+  --border-strong: #c3d2ec;
 
-  --text: #14211d;
-  --text-dim: #5b6b63;
+  --text: #0b1220;
+  --text-dim: #55637c;
+  --text-faint: #8794ac;
 
-  /* deep Omani green. --accent is the interactive colour and clears 6.7:1
-     on --paper, so it is safe for text as well as for fills. */
-  --accent: #0f5f3d;
-  --accent-strong: #0a4429;
-  --accent-bright: #16794e;
-  --accent-soft: rgba(15, 95, 61, .09);
-  --accent-line: rgba(15, 95, 61, .22);
+  /* primary: blue. --accent clears 4.7:1 on --paper/--surface, safe for
+     text as well as fills. */
+  --accent: #2f6fed;
+  --accent-strong: #1d4ed8;
+  --accent-bright: #4c86ff;
+  --accent-soft: rgba(47, 111, 237, .10);
+  --accent-line: rgba(47, 111, 237, .28);
 
-  /* gold is decorative: hairlines, dividers, small marks. --gold-ink is the
-     only gold allowed to carry text (5.4:1 on paper). */
-  --gold: #b0882a;
-  --gold-ink: #7c5e14;
-  --gold-soft: rgba(176, 136, 42, .13);
-  --gold-line: rgba(176, 136, 42, .40);
+  /* secondary: a narrow-band cyan, used only for citation numerals and the
+     odd accent dot — never for anything that competes with the primary
+     blue for attention. */
+  --accent-2: #0c8fa3;
+  --accent-2-soft: rgba(12, 143, 163, .12);
+  --accent-2-line: rgba(12, 143, 163, .30);
 
-  --sand: #e5d8bd;
-  --sand-soft: rgba(229, 216, 189, .38);
-
-  --warn: #8a6100;
-  --warn-soft: rgba(138, 97, 0, .10);
-  --danger: #b3261e;
-  --danger-soft: rgba(179, 38, 30, .07);
+  --warn: #92660a;
+  --warn-soft: rgba(146, 102, 10, .10);
+  --danger: #c0272a;
+  --danger-soft: rgba(192, 39, 42, .07);
 
   --r-sm: 10px;
-  --r: 16px;
-  --r-lg: 22px;
+  --r: 14px;
+  --r-lg: 20px;
   --r-pill: 999px;
 
-  /* Two-layer shadows: a tight contact shadow plus a wide soft one. A single
-     large shadow reads as fog; two read as an object above a surface. */
-  --shadow-sm: 0 1px 2px rgba(20, 33, 29, .05), 0 2px 8px rgba(20, 33, 29, .04);
-  --shadow: 0 1px 2px rgba(20, 33, 29, .05), 0 10px 30px rgba(20, 33, 29, .07);
-  --shadow-lg: 0 2px 6px rgba(20, 33, 29, .06), 0 24px 60px rgba(20, 33, 29, .11);
-  --shadow-accent: 0 10px 30px rgba(15, 95, 61, .16);
+  --shadow-sm: 0 1px 2px rgba(15, 30, 60, .05), 0 2px 8px rgba(15, 30, 60, .05);
+  --shadow: 0 1px 2px rgba(15, 30, 60, .05), 0 10px 30px rgba(15, 30, 60, .09);
+  --shadow-lg: 0 2px 6px rgba(15, 30, 60, .06), 0 24px 60px rgba(15, 30, 60, .15);
+  --shadow-accent: 0 8px 22px rgba(47, 111, 237, .20);
 
-  /* One easing for entrances, one for interactions. Reusing two curves is
-     what makes unrelated components feel like one product. */
   --ease: cubic-bezier(.22, .68, .28, 1);
   --ease-out: cubic-bezier(.16, 1, .3, 1);
   --fast: .16s;
-  --med: .28s;
+  --med: .24s;
+
+  --col-w: 50rem;
 }
 
-/* Dark is a real mode, not an inversion: the same tokens, re-valued once.
-   The greens lighten (a 6.7:1 green on white is a 2:1 green on near-black)
-   and the sand becomes a warm shadow rather than a warm highlight. */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --paper: #0a1210;
-    --surface: #101a16;
-    --surface-2: #16221d;
-    --surface-3: #1d2a24;
-    --glass: rgba(16, 26, 22, .72);
-    --glass-2: rgba(16, 26, 22, .55);
-    --shell-bg: linear-gradient(180deg, rgba(16, 26, 22, .92), rgba(16, 26, 22, .97));
+  :root:not([data-theme="light"]) { color-scheme: dark; }
+  :root:not([data-theme="light"]) {
+    --paper: #070c16;
+    --surface: #0d1526;
+    --surface-2: #111b30;
+    --surface-3: #16213a;
 
-    --border: #24332c;
-    --border-strong: #33473c;
+    --border: #1d2a45;
+    --border-strong: #28395c;
 
-    --text: #e9f0eb;
-    --text-dim: #9bada4;
+    --text: #eaf0fb;
+    --text-dim: #93a2c2;
+    --text-faint: #5f6f92;
 
-    --accent: #45b083;
-    --accent-strong: #6ecca2;
-    --accent-bright: #58c294;
-    --accent-soft: rgba(69, 176, 131, .14);
-    --accent-line: rgba(69, 176, 131, .30);
+    --accent: #5b8dff;
+    --accent-strong: #8fb1ff;
+    --accent-bright: #6f9dff;
+    --accent-soft: rgba(91, 141, 255, .16);
+    --accent-line: rgba(91, 141, 255, .34);
 
-    --gold: #d6b158;
-    --gold-ink: #e0c079;
-    --gold-soft: rgba(214, 177, 88, .14);
-    --gold-line: rgba(214, 177, 88, .34);
+    --accent-2: #34c6da;
+    --accent-2-soft: rgba(52, 198, 218, .14);
+    --accent-2-line: rgba(52, 198, 218, .34);
 
-    --sand: #3b3423;
-    --sand-soft: rgba(59, 52, 35, .45);
+    --warn: #e3b656;
+    --warn-soft: rgba(227, 182, 86, .14);
+    --danger: #f0817d;
+    --danger-soft: rgba(240, 129, 125, .12);
 
-    --warn: #d6ab42;
-    --warn-soft: rgba(214, 171, 66, .14);
-    --danger: #e2796f;
-    --danger-soft: rgba(226, 121, 111, .12);
-
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .30);
-    --shadow: 0 2px 10px rgba(0, 0, 0, .38);
-    --shadow-lg: 0 10px 40px rgba(0, 0, 0, .50);
-    --shadow-accent: 0 10px 30px rgba(0, 0, 0, .45);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .35);
+    --shadow: 0 2px 10px rgba(0, 0, 0, .42);
+    --shadow-lg: 0 10px 40px rgba(0, 0, 0, .58);
+    --shadow-accent: 0 8px 22px rgba(0, 0, 0, .5);
   }
 }
 
-/* --- 2. base + accessibility ------------------------------------------- */
-* { box-sizing: border-box; }
+/* The manual toggle: identical dark values, forced regardless of OS. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #070c16;
+  --surface: #0d1526;
+  --surface-2: #111b30;
+  --surface-3: #16213a;
+  --border: #1d2a45;
+  --border-strong: #28395c;
+  --text: #eaf0fb;
+  --text-dim: #93a2c2;
+  --text-faint: #5f6f92;
+  --accent: #5b8dff;
+  --accent-strong: #8fb1ff;
+  --accent-bright: #6f9dff;
+  --accent-soft: rgba(91, 141, 255, .16);
+  --accent-line: rgba(91, 141, 255, .34);
+  --accent-2: #34c6da;
+  --accent-2-soft: rgba(52, 198, 218, .14);
+  --accent-2-line: rgba(52, 198, 218, .34);
+  --warn: #e3b656;
+  --warn-soft: rgba(227, 182, 86, .14);
+  --danger: #f0817d;
+  --danger-soft: rgba(240, 129, 125, .12);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, .35);
+  --shadow: 0 2px 10px rgba(0, 0, 0, .42);
+  --shadow-lg: 0 10px 40px rgba(0, 0, 0, .58);
+  --shadow-accent: 0 8px 22px rgba(0, 0, 0, .5);
+}
+:root[data-theme="light"] { color-scheme: light; }
 
+/* --- 2. base + accessibility --------------------------------------------- */
+* { box-sizing: border-box; }
 html, body { height: 100%; }
 
 body {
@@ -151,18 +158,12 @@ body {
   color: var(--text);
   font-family: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
   font-size: 16px;
-  /* Arabic needs more line height than Latin: ascenders, descenders and
-     dots collide at Latin defaults. */
   line-height: 1.85;
   -webkit-text-size-adjust: 100%;
-  /* Arabic looks thin and wiry without this on macOS/iOS. */
   -webkit-font-smoothing: antialiased;
+  transition: background var(--med) var(--ease), color var(--med) var(--ease);
 }
 
-/* The UA rule for [hidden] is display:none, and ANY author `display`
-   overrides it. Several components here are flex/grid, and script.js hides
-   filtered cards and service rows with the hidden attribute — without this
-   line the search box would filter nothing at all. */
 [hidden] { display: none !important; }
 
 .sr-only {
@@ -174,8 +175,6 @@ body {
   white-space: nowrap;
 }
 
-/* Keyboard focus must be unmistakable on every surface, including the green
-   fills — hence the paired outline (dark) and ring (light). */
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
@@ -183,7 +182,7 @@ body {
 }
 .msg--user :focus-visible,
 .composer__send:focus-visible,
-.svc__ask:focus-visible,
+.svc__pill:focus-visible,
 .option:focus-visible {
   outline-color: currentColor;
   box-shadow: 0 0 0 4px var(--accent-soft);
@@ -191,261 +190,73 @@ body {
 
 ::selection { background: var(--accent-soft); color: var(--text); }
 
-/* --- 3. ambient background --------------------------------------------- */
-/* Fixed behind everything, so scrolling the thread does not drag it. */
-.ambient {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
+button { font: inherit; color: inherit; }
 
-.ambient__shape,
-.ambient__ring {
-  position: absolute;
-  border-radius: 50%;
-  will-change: transform;
-}
-
-/* Soft radial gradients rather than blurred circles: same look, no filter
-   on a moving element. Alphas are deliberately low — this layer sits behind
-   translucent surfaces and must never fight the text on top of it. */
-.ambient__shape--green {
-  width: 46vmax; height: 46vmax;
-  top: -14vmax; inset-inline-start: -12vmax;
-  background: radial-gradient(circle at 50% 50%,
-              rgba(15, 95, 61, .16), rgba(15, 95, 61, 0) 68%);
-  animation: drift-a 26s var(--ease) infinite alternate;
-}
-.ambient__shape--sand {
-  width: 52vmax; height: 52vmax;
-  bottom: -20vmax; inset-inline-end: -16vmax;
-  background: radial-gradient(circle at 50% 50%,
-              rgba(198, 170, 116, .22), rgba(198, 170, 116, 0) 70%);
-  animation: drift-b 32s var(--ease) infinite alternate;
-}
-.ambient__shape--gold {
-  width: 26vmax; height: 26vmax;
-  top: 34%; inset-inline-end: 6%;
-  background: radial-gradient(circle at 50% 50%,
-              rgba(176, 136, 42, .14), rgba(176, 136, 42, 0) 66%);
-  animation: drift-c 24s var(--ease) infinite alternate;
-}
-/* A single hairline ring: the one geometric shape in the composition, which
-   is what keeps the blobs from reading as a lava lamp. */
-.ambient__ring {
-  width: 30vmax; height: 30vmax;
-  top: 8%; inset-inline-end: 18%;
-  border: 1px solid var(--gold-line);
-  opacity: .30;
-  animation: drift-c 28s var(--ease) infinite alternate-reverse;
-}
-@media (prefers-color-scheme: dark) {
-  .ambient__shape--green { background: radial-gradient(circle at 50% 50%, rgba(69, 176, 131, .16), rgba(69, 176, 131, 0) 68%); }
-  .ambient__shape--sand  { background: radial-gradient(circle at 50% 50%, rgba(120, 100, 60, .24), rgba(120, 100, 60, 0) 70%); }
-  .ambient__shape--gold  { background: radial-gradient(circle at 50% 50%, rgba(214, 177, 88, .12), rgba(214, 177, 88, 0) 66%); }
-}
-
-/* --- 4. shell ----------------------------------------------------------
-   A single column that owns the viewport height, so the composer is pinned
-   and only the thread scrolls. 100dvh (not vh) because mobile browsers
-   shrink the visual viewport when the keyboard opens. On desktop it lifts
-   off the page as a rounded card and the ambient layer shows around it. */
-.shell {
+/* generic 18px line icons: stroke-based, drawn inline per use so the page
+   ships zero icon-font/image requests. */
+.icon { display: inline-block; width: 16px; height: 16px; flex: none; }
+.icon-plus {
   position: relative;
-  z-index: 1;
-  max-width: 980px;
-  margin: 0 auto;
-  height: 100dvh;
+}
+.icon-plus::before, .icon-plus::after {
+  content: "";
+  position: absolute;
+  background: currentColor;
+  border-radius: 2px;
+}
+.icon-plus::before { inset-inline-start: 7px; top: 1px; width: 2px; height: 14px; }
+.icon-plus::after { top: 7px; inset-inline-start: 1px; width: 14px; height: 2px; }
+
+/* --- 3. app shell --------------------------------------------------------
+   No sidebar in this pass: one column, topbar + a single scrolling region
+   that holds the hero, the sticky composer, the directory and the thread. */
+.app {
   display: flex;
   flex-direction: column;
-  background: var(--shell-bg);
-  border-inline: 1px solid var(--border);
-  box-shadow: var(--shadow);
+  height: 100dvh;
+  background: var(--paper);
 }
 
-@media (min-width: 900px) {
-  .shell {
-    height: calc(100dvh - 40px);
-    margin: 20px auto;
-    border: 1px solid var(--border);
-    border-radius: var(--r-lg);
-    box-shadow: var(--shadow-lg);
-    /* Clips the top bar's rounded corners and the hero's gradient. */
-    overflow: hidden;
-  }
-}
-
-/* --- 5. top bar -------------------------------------------------------- */
+/* --- 4. topbar ------------------------------------------------------------ */
 .topbar {
-  position: relative;
-  z-index: 3;
   flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px 22px;
-  background: var(--glass);
+  padding: 12px 22px;
   border-bottom: 1px solid var(--border);
-}
-/* Glass only where it is cheap: two small strips that never move. */
-@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .topbar {
-    -webkit-backdrop-filter: saturate(180%) blur(16px);
-    backdrop-filter: saturate(180%) blur(16px);
-  }
-}
-/* Gold hairline under the header: the smallest possible amount of gold, and
-   the detail that makes the whole thing read as an official product. */
-.topbar::after {
-  content: "";
-  position: absolute;
-  inset-inline: 0;
-  bottom: -1px;
-  height: 1px;
-  background: linear-gradient(90deg,
-              transparent, var(--gold-line) 22%, var(--gold-line) 78%, transparent);
+  background: var(--surface);
 }
 
-.brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
 
-/* --- the logo mark -----------------------------------------------------
-   Original, and drawn with nothing but borders, radii and two rotations —
-   no image, no SVG, no icon font, no glyph from the webfont.
-
-   Four ideas stacked inside one 42px tile:
-
-     1. the seal        deep green tile, inset gold ring, top-light sheen
-     2. the watermark   a rotated square, the geometric khatam motif Omani
-                        official design leans on, at ~15% so it reads as
-                        texture and never as a second shape
-     3. the letter د    the dāl skeleton — a baseline that curves up into a
-                        short ascender, finished with the angled pen entry
-                        that separates a dāl from a plain corner
-     4. the path        a gold chevron sitting on the END of that baseline,
-                        so the letter's own stroke doubles as the route and
-                        the arrowhead marks where it leads
-
-   Everything is sized so it survives the 38px phone tile: no detail is
-   thinner than 2px, and there are exactly four marks to read.
-
-   Two deliberate departures from the rest of this file:
-
-   - PHYSICAL properties (right/top/border-right) inside the glyph. A
-     letterform must not mirror, so the logical properties that are correct
-     everywhere else are wrong here.
-   - LITERAL colours, not var(). A logo keeps its own colours in both
-     themes; re-tinting it with the UI tokens would make the white strokes
-     wash out on dark mode's lighter greens. These four are brand constants. */
+/* --- the logo mark: a CSS gradient tile + an inline SVG sparkle/compass
+   star. Original to this redesign, and deliberately abstract rather than a
+   letterform — "guide" is carried by the compass motif, not by a دال. */
 .brand__mark {
-  --mark-green: #177c50;
-  --mark-green-deep: #093f26;
-  --mark-ink: #ffffff;
-  --mark-gold: #cfa93f;
-
   flex: none;
   position: relative;
-  width: 42px; height: 42px;
+  width: 36px; height: 36px;
   display: grid;
   place-items: center;
-  border-radius: 13px;
+  border-radius: 11px;
   background:
-    /* the sheen, so the tile reads as a pressed seal rather than a swatch */
-    radial-gradient(120% 110% at 24% 10%, rgba(255, 255, 255, .22), transparent 58%),
-    linear-gradient(145deg, var(--mark-green), var(--mark-green-deep));
-  box-shadow: var(--shadow-accent),
-              inset 0 1px 0 rgba(255, 255, 255, .20),
-              inset 0 0 0 1px rgba(255, 255, 255, .07);
+    radial-gradient(120% 110% at 26% 14%, rgba(255, 255, 255, .30), transparent 58%),
+    linear-gradient(145deg, var(--accent-bright), var(--accent-strong));
+  box-shadow: var(--shadow-accent), inset 0 1px 0 rgba(255, 255, 255, .22);
 }
-
-/* 2. geometric watermark, behind the glyph (::before paints before the
-      element's children, so no z-index is needed). */
-.brand__mark::before {
-  content: "";
-  position: absolute;
-  top: 50%; left: 50%;
-  width: 20px; height: 20px;
-  margin: -10px 0 0 -10px;
-  border: 1px solid rgba(255, 255, 255, .34);
-  border-radius: 3px;
-  transform: rotate(45deg);
-  opacity: .55;
-}
-
-/* 1b. inner gold ring, inset so it reads as an engraved seal edge. Painted
-       last, and it clears the glyph's ink by 4px on every side. */
-.brand__mark::after {
-  content: "";
-  position: absolute;
-  inset: 3px;
-  border-radius: 10px;
-  border: 1px solid var(--mark-gold);
-  opacity: .5;
-}
-
-/* The glyph box is sized to bound its own ink, so `place-items: center` on
-   the tile optically centres the mark with no nudge values. */
-.brand__glyph {
-  position: relative;
-  width: 24px; height: 18px;
-}
-
-/* 3. the dāl: bottom stroke + right stroke joined by one large corner
-      radius. That single curve is the whole letter — baseline running
-      right-to-left, turning up into the ascender. */
-.brand__dal {
-  position: absolute;
-  right: 0; bottom: 3px;
-  width: 17px; height: 12px;
-  border-right: 3px solid var(--mark-ink);
-  border-bottom: 3px solid var(--mark-ink);
-  border-bottom-right-radius: 9px;
-}
-/* The pen entry at the top of the ascender: a short bar rotated about its
-   right end, so it lifts away up-and-left exactly as a reed pen leaves the
-   stroke. Without it the shape reads as a rounded corner, not as a letter.
-
-   Kept short (6.5px) and slightly thinner than the main stroke: at 8px and
-   a steeper angle the bar and the ascender merge into one fat wedge instead
-   of reading as a tapered terminal. */
-.brand__dal::before {
-  content: "";
-  position: absolute;
-  top: -1px; right: -3px;
-  width: 6.5px; height: 2.5px;
-  border-radius: 2px;
-  background: var(--mark-ink);
-  transform-origin: 100% 50%;
-  transform: rotate(-15deg);
-}
-
-/* 4. the path's arrowhead, capping the baseline. Two borders on a rotated
-      square — pointing inline-start, which in Arabic is forward.
-
-      Sized and offset so its centre lands exactly on the baseline's centre
-      line and its right corners meet the stroke's left tip: the line flows
-      into the arrowhead, instead of a floating chevron sitting beside it. */
-.brand__arrow {
-  position: absolute;
-  left: 1px; bottom: 2px;
-  width: 5px; height: 5px;
-  border-left: 2px solid var(--mark-gold);
-  border-bottom: 2px solid var(--mark-gold);
-  border-bottom-left-radius: 1px;
-  transform: rotate(45deg);
-}
+.brand__spark { width: 60%; height: 60%; }
 
 .brand__names { display: flex; flex-direction: column; min-width: 0; }
 .brand__name {
-  font-size: 1.3rem;
+  font-size: 1.14rem;
   font-weight: 700;
   line-height: 1.35;
   letter-spacing: -.01em;
 }
 .brand__tag {
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   color: var(--text-dim);
   line-height: 1.4;
   overflow: hidden;
@@ -453,31 +264,61 @@ body {
   white-space: nowrap;
 }
 
+.topbar__actions { display: flex; align-items: center; gap: 8px; }
+.topbar__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color var(--fast), background var(--fast), color var(--fast);
+}
+.topbar__btn:hover { border-color: var(--accent-line); background: var(--accent-soft); color: var(--accent); }
+.topbar__btn--icon { padding: 8px; }
+.topbar__btn-label { white-space: nowrap; }
+
+.theme-toggle__icon {
+  width: 15px; height: 15px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  position: relative;
+  overflow: hidden;
+}
+.theme-toggle__icon::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 50%;
+  inset-block: -1px;
+  width: 50%;
+  background: currentColor;
+}
+.topbar__btn[data-theme="light"] .theme-toggle__icon::before { opacity: 0; }
+.topbar__btn[data-theme="dark"] .theme-toggle__icon::before { inset-inline-start: -1px; width: calc(100% + 2px); }
+
 .badge {
   flex: none;
-  font-size: 0.72rem;
-  padding: 4px 12px;
+  font-size: 0.7rem;
+  padding: 4px 11px;
   border-radius: var(--r-pill);
   border: 1px solid var(--border);
   color: var(--text-dim);
   background: var(--surface-2);
   white-space: nowrap;
-  /* Model ids are Latin; keep them LTR inside an RTL page. */
   direction: ltr;
   unicode-bidi: isolate;
   transition: opacity var(--med) var(--ease), color var(--fast), border-color var(--fast);
 }
 .badge--idle { opacity: 0; }
-.badge--primary {
-  border-color: var(--accent-line);
-  color: var(--accent);
-  background: var(--accent-soft);
-}
-/* A fallback model answered. Visible but not alarming — the whole point is
-   that the answer is still good. */
+.badge--primary { border-color: var(--accent-line); color: var(--accent); background: var(--accent-soft); }
 .badge--fallback { border-color: var(--warn); color: var(--warn); background: var(--warn-soft); }
 
-/* --- thread (scroll region) --- */
+/* --- the single scroll region --- */
 .thread {
   position: relative;
   flex: 1;
@@ -485,7 +326,6 @@ body {
   overflow-y: auto;
   overscroll-behavior: contain;
   scroll-behavior: smooth;
-  padding: 26px 22px 10px;
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
 }
@@ -498,44 +338,32 @@ body {
   background-clip: content-box;
 }
 
-/* --- 6. hero -----------------------------------------------------------
-   Short on purpose. It explains what the tool answers and gets out of the
-   way: .shell.is-chatting removes it once the first question is asked. */
+/* --- 5. hero + stats ------------------------------------------------------
+   The search-first landing view. Removed once .app.is-chatting, same as the
+   directory below it — the composer is the only thing that survives both
+   states (see section 6). */
 .hero {
+  max-width: var(--col-w);
+  margin: 0 auto;
+  padding: 44px 24px 20px;
+  text-align: center;
+}
+.app.is-chatting .hero { display: none; }
+
+.hero__mark {
   position: relative;
-  padding: 30px 26px 26px;
-  margin-bottom: 6px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
-  background: var(--glass-2);
-  overflow: hidden;
-  isolation: isolate;
-}
-/* The animated gradient. Two soft green/sand/gold washes over a 200% canvas,
-   drifting slowly. Kept behind a z-index and at low alpha so every glyph on
-   top of it stays at full contrast. */
-.hero::before {
-  content: "";
-  position: absolute;
-  inset: -40%;
-  z-index: -1;
+  width: 60px; height: 60px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 18px;
+  border-radius: 18px;
   background:
-    radial-gradient(40% 50% at 18% 22%, rgba(15, 95, 61, .16), transparent 70%),
-    radial-gradient(38% 46% at 82% 26%, rgba(176, 136, 42, .14), transparent 70%),
-    radial-gradient(52% 60% at 60% 92%, rgba(198, 170, 116, .20), transparent 72%),
-    linear-gradient(135deg, rgba(15, 95, 61, .05), rgba(229, 216, 189, .16));
-  background-size: 200% 200%;
-  animation: aura 22s var(--ease) infinite alternate;
+    radial-gradient(120% 110% at 26% 14%, rgba(255, 255, 255, .30), transparent 58%),
+    linear-gradient(145deg, var(--accent-bright), var(--accent-strong));
+  box-shadow: var(--shadow-accent), inset 0 1px 0 rgba(255, 255, 255, .22);
+  animation: rise .5s var(--ease) both;
 }
-/* A hairline sheen along the top edge — the "premium card" cue. */
-.hero::after {
-  content: "";
-  position: absolute;
-  inset-inline: 12%;
-  top: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--gold-line), transparent);
-}
+.hero__mark .brand__spark { width: 62%; height: 62%; }
 
 .hero__eyebrow {
   display: inline-flex;
@@ -543,63 +371,71 @@ body {
   gap: 8px;
   margin: 0 0 14px;
   padding: 5px 14px 5px 12px;
-  border: 1px solid var(--gold-line);
+  border: 1px solid var(--accent-2-line);
   border-radius: var(--r-pill);
-  background: var(--gold-soft);
-  color: var(--gold-ink);
+  background: var(--accent-2-soft);
+  color: var(--accent-2);
   font-size: 0.76rem;
   font-weight: 600;
-  line-height: 1.6;
-  animation: rise .55s var(--ease) both;
+  animation: rise .5s var(--ease) .04s both;
 }
 .hero__dot {
   width: 7px; height: 7px;
   border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  background: var(--accent-2);
+  box-shadow: 0 0 0 3px var(--accent-2-soft);
 }
 
 .hero__title {
   margin: 0 0 10px;
-  font-size: clamp(1.5rem, 1.1rem + 1.9vw, 2.3rem);
+  font-size: clamp(1.5rem, 1.15rem + 1.6vw, 2.1rem);
   font-weight: 700;
-  line-height: 1.55;
   letter-spacing: -.015em;
-  max-width: 24ch;
-  animation: rise .55s var(--ease) .07s both;
+  max-width: 26ch;
+  margin-inline: auto;
+  animation: rise .5s var(--ease) .08s both;
 }
-/* Gradient text, with a plain-colour fallback that already meets contrast —
-   the gradient is an enhancement, never the thing carrying legibility. Both
-   endpoints clear 5:1 on the hero background at this size. */
-.hero__accent { color: var(--accent); }
-@supports ((background-clip: text) or (-webkit-background-clip: text)) {
-  .hero__accent {
-    background: linear-gradient(96deg, var(--accent-strong), var(--accent) 42%, var(--gold-ink));
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-  }
+.hero__text {
+  margin: 0 auto;
+  max-width: 46ch;
+  color: var(--text-dim);
+  font-size: 0.98rem;
+  animation: rise .5s var(--ease) .13s both;
 }
 
-.hero__text {
-  margin: 0;
-  max-width: 54ch;
-  color: var(--text-dim);
-  font-size: 1rem;
-  animation: rise .55s var(--ease) .14s both;
+/* Populated by script.js from the SAME directory payload the grid below
+   renders — one source of truth, no hardcoded coverage numbers. */
+.hero__stats {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 20px;
+  animation: rise .5s var(--ease) .17s both;
 }
+.hero__stats:empty { display: none; }
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 20px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+.stat__value { font-size: 1.15rem; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+.stat__label { font-size: 0.72rem; color: var(--text-dim); }
 
 .hero__chips {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 9px;
-  margin-top: 20px;
-  animation: rise .55s var(--ease) .21s both;
+  margin-top: 22px;
+  animation: rise .5s var(--ease) .21s both;
 }
 .chip {
-  position: relative;
   font-family: inherit;
-  font-size: 0.88rem;
+  font-size: 0.86rem;
   font-weight: 500;
   padding: 8px 16px;
   border-radius: var(--r-pill);
@@ -608,477 +444,338 @@ body {
   color: var(--text);
   cursor: pointer;
   box-shadow: var(--shadow-sm);
-  transition: transform var(--fast) var(--ease-out), border-color var(--fast),
-              color var(--fast), background var(--fast), box-shadow var(--fast);
+  transition: transform var(--fast) var(--ease-out), border-color var(--fast), color var(--fast), background var(--fast);
 }
-.chip:hover {
-  transform: translateY(-2px);
-  border-color: var(--accent-line);
-  color: var(--accent);
-  background: var(--accent-soft);
-  box-shadow: var(--shadow);
-}
+.chip:hover { transform: translateY(-2px); border-color: var(--accent-line); color: var(--accent); background: var(--accent-soft); }
 .chip:active { transform: translateY(0) scale(.98); }
 
-.shell.is-chatting .hero { display: none; }
-
-/* --- 7. directory ----------------------------------------------------- */
-.directory {
-  margin-top: 26px;
-  padding-top: 22px;
-  border-top: 1px solid var(--border);
+/* --- 6. composer (sticky, not fixed) --------------------------------------
+   Lives in normal document flow between the hero and the directory. With
+   nothing to scroll (the empty state), that puts it right under the hero,
+   reading as a homepage search box. `position: sticky; bottom: 0` then
+   glues it to the viewport's bottom edge once there IS enough content to
+   scroll past it — directory browsing, then the growing message thread —
+   with no JS re-parenting required for either state. */
+.composer-wrap {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  max-width: var(--col-w);
+  margin: 0 auto;
+  padding: 10px 22px calc(14px + env(safe-area-inset-bottom));
+  background: linear-gradient(var(--paper) 55%, var(--paper) 100%);
 }
-.shell.is-chatting .directory { display: none; }
+.composer {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 8px 9px 18px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  transition: border-color var(--med) var(--ease), box-shadow var(--med) var(--ease);
+}
+.composer:focus-within { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft), var(--shadow-lg); }
+.composer__icon {
+  flex: none;
+  width: 17px; height: 17px;
+  border: 2px solid var(--text-faint);
+  border-radius: 50%;
+  position: relative;
+}
+.composer__icon::after {
+  content: "";
+  position: absolute;
+  inset-inline-start: 2px;
+  top: 14px;
+  width: 8px; height: 2px;
+  border-radius: 2px;
+  background: var(--text-faint);
+  transform: rotate(45deg);
+}
+.composer:focus-within .composer__icon,
+.composer:focus-within .composer__icon::after { border-color: var(--accent); background: var(--accent); }
+.composer__input {
+  flex: 1;
+  min-width: 0;
+  font-family: inherit;
+  font-size: 1rem;
+  padding: 8px 0;
+  border: none;
+  background: transparent;
+  color: var(--text);
+}
+.composer__input:focus { outline: none; }
+.composer__input::placeholder { color: var(--text-faint); }
+.composer__input:disabled { opacity: .6; }
+
+.composer__send {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(145deg, var(--accent-bright), var(--accent-strong));
+  color: #fff;
+  cursor: pointer;
+  transition: transform var(--fast) var(--ease-out), filter var(--fast), opacity var(--fast);
+}
+.composer__send:hover:not(:disabled) { filter: brightness(1.08); transform: scale(1.05); }
+.composer__send:active:not(:disabled) { transform: scale(.95); }
+.composer__send:disabled { opacity: .4; cursor: default; }
+.composer__send-arrow {
+  width: 8px; height: 8px;
+  border-inline-end: 2px solid currentColor;
+  border-block-start: 2px solid currentColor;
+  transform: rotate(45deg);
+}
+[dir="rtl"] .composer__send-arrow { transform: rotate(-135deg); }
+
+.disclaimer {
+  margin: 8px 4px 0;
+  font-size: 0.7rem;
+  line-height: 1.6;
+  color: var(--text-faint);
+  text-align: center;
+}
+
+/* --- 7. directory grid -----------------------------------------------------
+   Always-expanded icon cards with the full service list shown as tappable
+   pills — no accordion. Everything a citizen can ask about is visible at a
+   glance, which is the whole point of a browse section. */
+.directory {
+  max-width: var(--col-w);
+  margin: 0 auto;
+  padding: 6px 22px 8px;
+}
+.app.is-chatting .directory { display: none; }
 
 .directory__head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 4px 14px;
-  animation: rise .55s var(--ease) .26s both;
+  gap: 10px 16px;
+  padding: 10px 2px;
 }
 .directory__title {
-  position: relative;
   margin: 0;
-  padding-inline-start: 14px;
-  font-size: 1.15rem;
+  font-size: 1.05rem;
   font-weight: 700;
-  line-height: 1.6;
   letter-spacing: -.01em;
 }
-/* Green-to-gold rule at the start of the heading: an accent that costs one
-   pseudo-element and mirrors correctly because it is inline-start. */
-.directory__title::before {
-  content: "";
-  position: absolute;
-  inset-inline-start: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 4px; height: 1.15em;
-  border-radius: var(--r-pill);
-  background: linear-gradient(to bottom, var(--accent), var(--gold));
-}
-.directory__meta {
-  margin: 0;
-  font-size: 0.78rem;
-  font-weight: 500;
-  color: var(--text-dim);
-}
 
-/* search: the wrapper owns the icon and the focus ring so the input itself
-   keeps a plain, predictable box. */
-.search {
-  position: relative;
-  margin: 14px 0 16px;
-  animation: rise .55s var(--ease) .32s both;
-}
+.search { position: relative; flex: none; width: 100%; max-width: 280px; }
 .search__icon {
   position: absolute;
-  inset-inline-start: 17px;
+  inset-inline-start: 13px;
   top: 50%;
-  width: 13px; height: 13px;
+  width: 12px; height: 12px;
   margin-top: -5px;
   border: 2px solid var(--text-dim);
   border-radius: 50%;
   pointer-events: none;
-  transition: border-color var(--med) var(--ease), transform var(--med) var(--ease-out);
+  transition: border-color var(--med) var(--ease);
 }
-/* The magnifier's handle. Rotated so it points away from the glass on both
-   sides of the mirror. */
 .search__icon::after {
   content: "";
   position: absolute;
   inset-inline-start: 1px;
-  top: 12px;
-  width: 7px; height: 2px;
+  top: 11px;
+  width: 6px; height: 2px;
   border-radius: 2px;
   background: var(--text-dim);
   transform: rotate(45deg);
-  transform-origin: center;
   transition: background var(--med) var(--ease);
 }
 .directory__search {
   width: 100%;
   font-family: inherit;
-  /* 16px minimum, same reason as the composer: iOS zooms below it. */
-  font-size: 1rem;
-  padding: 12px 18px;
-  padding-inline-start: 44px;
-  border-radius: var(--r);
+  font-size: 0.88rem;
+  padding: 9px 14px;
+  padding-inline-start: 36px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--border-strong);
-  background: var(--surface-2);
+  background: var(--surface);
   color: var(--text);
-  box-shadow: var(--shadow-sm);
-  transition: border-color var(--med) var(--ease), background var(--med) var(--ease),
-              box-shadow var(--med) var(--ease), transform var(--med) var(--ease-out);
+  transition: border-color var(--med) var(--ease), box-shadow var(--med) var(--ease);
 }
-.directory__search::placeholder { color: var(--text-dim); opacity: .9; }
+.directory__search::placeholder { color: var(--text-faint); }
 .directory__search:focus {
   outline: none;
   border-color: var(--accent);
-  background: var(--surface);
-  /* The ring grows from the field rather than snapping on. */
-  box-shadow: 0 0 0 4px var(--accent-soft), var(--shadow);
-  transform: translateY(-1px);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
-.search:focus-within .search__icon {
-  border-color: var(--accent);
-  transform: scale(1.08);
-}
+.search:focus-within .search__icon { border-color: var(--accent); }
 .search:focus-within .search__icon::after { background: var(--accent); }
 
-/* auto-fill rather than a fixed column count: one rule covers phone, tablet
-   and desktop, and adding authorities never needs a new breakpoint.
-   align-items:start keeps an expanded card from stretching its neighbour. */
 .directory__list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(258px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(272px, 1fr));
   align-items: start;
   gap: 12px;
+  margin-top: 4px;
 }
 .directory__empty {
-  margin: 10px 2px 0;
+  margin: 10px 0 0;
   padding: 14px 16px;
   border: 1px dashed var(--border-strong);
   border-radius: var(--r);
   font-size: 0.9rem;
   color: var(--text-dim);
-  background: var(--sand-soft);
-  animation: rise .3s var(--ease) both;
 }
 
-/* --- 8. authority cards + service rows -------------------------------- */
 .auth {
-  position: relative;
   border: 1px solid var(--border);
   border-radius: var(--r);
   background: var(--surface);
   box-shadow: var(--shadow-sm);
-  overflow: hidden;
-  transition: transform var(--med) var(--ease-out), box-shadow var(--med) var(--ease),
-              border-color var(--med) var(--ease);
-  /* --i is set per card by script.js so the grid assembles in sequence
-     instead of all ten arriving at once. */
-  animation: card-in .5s var(--ease) calc(.36s + var(--i, 0) * 55ms) both;
-}
-/* Accent spine along the card's inline-start edge, revealed on hover and
-   while open. Scaled, not width-animated, so it cannot cause layout. */
-.auth::before {
-  content: "";
-  position: absolute;
-  inset-block: 0;
-  inset-inline-start: 0;
-  width: 3px;
-  background: linear-gradient(to bottom, var(--accent), var(--gold));
-  transform: scaleY(0);
-  transform-origin: top;
-  transition: transform var(--med) var(--ease-out);
-}
-.auth:hover {
-  transform: translateY(-3px);
-  border-color: var(--accent-line);
-  box-shadow: var(--shadow);
-}
-.auth:hover::before, .auth.is-open::before { transform: scaleY(1); }
-.auth.is-open {
-  border-color: var(--accent-line);
-  box-shadow: var(--shadow);
-}
-
-.auth__head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  font-family: inherit;
-  font-size: 0.95rem;
-  text-align: start;
   padding: 14px 16px;
-  border: none;
-  background: transparent;
-  color: var(--text);
-  cursor: pointer;
-  transition: background var(--fast) var(--ease);
+  transition: border-color var(--med) var(--ease), box-shadow var(--med) var(--ease), transform var(--med) var(--ease-out);
+  animation: card-in .45s var(--ease) calc(.15s + var(--i, 0) * 45ms) both;
 }
-.auth__head:hover { background: var(--accent-soft); }
-.auth__head:active { transform: scale(.995); }
-.auth__name {
-  flex: 1;
-  min-width: 0;
-  font-weight: 600;
-  line-height: 1.55;
-  transition: color var(--fast) var(--ease);
-}
-.auth__head:hover .auth__name, .auth.is-open .auth__name { color: var(--accent); }
-.auth__count {
-  flex: none;
-  font-size: 0.7rem;
-  font-weight: 600;
-  padding: 3px 10px;
-  border-radius: var(--r-pill);
-  color: var(--accent);
-  background: var(--accent-soft);
-  border: 1px solid var(--accent-line);
-  white-space: nowrap;
-}
-.auth__chev {
+.auth:hover { border-color: var(--accent-line); box-shadow: var(--shadow); transform: translateY(-2px); }
+
+.auth__head { display: flex; align-items: center; gap: 11px; }
+.auth__icon {
   flex: none;
   display: grid;
   place-items: center;
-  width: 22px; height: 22px;
-  border-radius: 50%;
-  font-size: 0.7rem;
-  color: var(--text-dim);
-  background: var(--surface-2);
-  transition: transform var(--med) var(--ease-out), background var(--fast), color var(--fast);
-}
-.auth.is-open .auth__chev {
-  transform: rotate(180deg);
-  color: var(--accent);
+  width: 36px; height: 36px;
+  border-radius: 10px;
   background: var(--accent-soft);
+  color: var(--accent);
 }
+.auth__icon svg { width: 19px; height: 19px; }
+.auth__meta { flex: 1; min-width: 0; }
+.auth__name { font-size: 0.94rem; font-weight: 700; line-height: 1.4; }
+.auth__count { font-size: 0.72rem; color: var(--text-dim); }
 
-/* Smooth expand/collapse without measuring anything in JavaScript:
-   grid-template-rows animates 0fr -> 1fr, so the panel grows to exactly its
-   own content height. That matters here because the search filter changes
-   how many service rows are visible WHILE a panel is open — a JS-measured
-   max-height would clip the list the moment the row count changed.
-
-   `visibility` (not the hidden attribute, which cannot transition) is what
-   keeps a collapsed panel out of the tab order and out of the a11y tree.
-   Browsers without 0fr interpolation simply snap open — no breakage. */
-.auth__panel {
-  display: grid;
-  grid-template-rows: 0fr;
-  visibility: hidden;
-  opacity: 0;
-  transition: grid-template-rows var(--med) var(--ease-out),
-              opacity var(--med) var(--ease),
-              visibility var(--med) linear;
-}
-.auth.is-open .auth__panel {
-  grid-template-rows: 1fr;
-  visibility: visible;
-  opacity: 1;
-}
-/* .auth__inner is the single wrapper script.js builds, and the box the 0fr
-   row clips. min-height:0 is required or the grid item refuses to shrink
-   below its content height. The universal selector is the safety net: any
-   direct child of the panel must clip, or the collapse leaks. */
-.auth__panel > .auth__inner,
-.auth__panel > * { min-height: 0; overflow: hidden; }
-
-.svclist {
-  list-style: none;
-  margin: 0;
-  padding: 0 16px 14px;
-}
-.svc {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px 10px;
-  padding: 10px 0;
-  border-top: 1px solid var(--border);
-  /* --j staggers the rows as the panel opens, which is what makes the
-     expansion feel like it unfolds rather than blinks. */
-  animation: row-in .34s var(--ease) calc(var(--j, 0) * 38ms) both;
-}
-.svc:first-child { border-top: none; }
-.svc__name {
-  flex: 1;
-  min-width: 120px;
-  font-size: 0.9rem;
-  line-height: 1.6;
-  transition: color var(--fast) var(--ease);
-}
-.svc:hover .svc__name { color: var(--accent); }
-.svc__ask {
-  flex: none;
+.svclist { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.svc__pill {
   font-family: inherit;
   font-size: 0.78rem;
-  font-weight: 600;
-  padding: 6px 14px;
+  font-weight: 500;
+  padding: 6px 12px;
   border-radius: var(--r-pill);
-  border: 1px solid var(--accent-line);
-  background: var(--accent-soft);
-  color: var(--accent);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text);
   cursor: pointer;
-  transition: background var(--fast) var(--ease), color var(--fast) var(--ease),
-              transform var(--fast) var(--ease-out), box-shadow var(--fast);
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease), border-color var(--fast);
 }
-.svc__ask:hover {
-  background: linear-gradient(145deg, var(--accent-bright), var(--accent-strong));
-  border-color: transparent;
-  color: #fff;
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-accent);
-}
-.svc__ask:active { transform: translateY(0) scale(.97); }
+.svc__pill:hover { background: var(--accent); color: #fff; border-color: transparent; }
+.svc__pill[hidden] { display: none; }
 
 .auth__portal {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  margin: 4px 16px 14px;
-  font-size: 0.76rem;
+  gap: 5px;
+  margin-top: 12px;
+  font-size: 0.74rem;
   font-weight: 500;
   color: var(--accent);
   text-decoration: none;
   border-bottom: 1px solid transparent;
-  transition: border-color var(--fast), gap var(--fast) var(--ease-out);
+  transition: border-color var(--fast);
 }
 .auth__portal::after { content: "←"; font-size: .9em; }
-.auth__portal:hover { border-bottom-color: var(--accent-line); gap: 10px; }
+.auth__portal:hover { border-bottom-color: var(--accent-line); }
 
-/* Re-run the entrance on the cards that survive a filter change. script.js
-   only toggles this class when the visible SET actually changes, so typing
-   four letters does not re-animate the grid four times. */
 .directory__list.is-refiltered .auth:not([hidden]) {
-  animation: card-in .32s var(--ease) calc(var(--i, 0) * 22ms) both;
+  animation: card-in .3s var(--ease) calc(var(--i, 0) * 20ms) both;
 }
 
-/* --- 9. chat messages + answer card ----------------------------------- */
+/* --- messages --------------------------------------------------------- */
 .messages {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding-bottom: 16px;
+  gap: 2px;
+  max-width: var(--col-w);
+  margin: 0 auto;
+  padding: 4px 22px 8px;
 }
 .messages:empty { display: none; }
 
-.msg {
-  max-width: 86%;
-  animation: msg-in .38s var(--ease-out) both;
-}
+.msg { max-width: 100%; padding: 12px 2px; animation: msg-in .34s var(--ease-out) both; }
 /* In RTL, flex-start is the right edge: the citizen's own words sit where
    an Arabic reader starts the line. */
 .msg--user {
   align-self: flex-start;
+  max-width: 84%;
   background: linear-gradient(145deg, var(--accent-bright), var(--accent-strong));
   color: #fff;
-  padding: 12px 17px;
+  padding: 11px 16px;
   border-radius: var(--r);
-  border-start-end-radius: 5px;
+  border-start-end-radius: 4px;
   box-shadow: var(--shadow-accent);
+  margin: 6px 0;
 }
-.msg--bot {
-  align-self: flex-end;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  padding: 16px 18px;
-  border-radius: var(--r);
-  border-start-start-radius: 5px;
-  box-shadow: var(--shadow-sm);
-}
+.msg--bot { align-self: stretch; }
 .msg__text { white-space: pre-wrap; overflow-wrap: break-word; }
 .msg__meta {
+  display: inline-flex;
   margin-top: 10px;
-  font-size: 0.72rem;
-  color: var(--text-dim);
-  opacity: .9;
+  padding: 3px 11px;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 0.7rem;
+  color: var(--text-faint);
 }
 
-/* --- the answer card (D5) --- */
-.card { width: 100%; }
-.card__head {
-  position: relative;
-  padding-bottom: 12px;
-  margin-bottom: 14px;
-  border-bottom: 1px solid var(--border);
+/* --- 8. answer card + citations --- */
+.card {
+  width: 100%;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
+.card__head { position: relative; padding-bottom: 12px; margin-bottom: 14px; border-bottom: 1px solid var(--border); }
 .card__head::after {
   content: "";
   position: absolute;
   inset-inline-start: 0;
   bottom: -1px;
-  width: 56px; height: 1px;
-  background: linear-gradient(90deg, var(--accent), var(--gold));
+  width: 48px; height: 1px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
 }
-.card__service {
-  font-size: 1.14rem;
-  font-weight: 700;
-  line-height: 1.5;
-  letter-spacing: -.01em;
-}
-.card__authority { font-size: 0.85rem; color: var(--text-dim); }
+.card__service { font-size: 1.08rem; font-weight: 700; line-height: 1.5; letter-spacing: -.01em; }
+.card__authority { font-size: 0.83rem; color: var(--text-dim); }
 
-.field { margin-bottom: 16px; }
-.field:last-child { margin-bottom: 0; }
-.field__label {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: var(--accent);
-  margin-bottom: 3px;
-}
-.field__label::before {
-  content: "";
-  width: 5px; height: 5px;
-  border-radius: 50%;
-  background: var(--gold);
-}
-.field__value { font-size: 0.95rem; }
-.field__value ul { margin: 6px 0 0; padding-inline-start: 20px; }
-.field__value ul li::marker { color: var(--accent); }
-.field__value li { margin-bottom: 5px; }
-
-/* Steps get real numbered discs via a counter — the one place where the
-   answer's structure is worth showing, since «الخطوات» is read in order. */
-.field__value ol {
-  list-style: none;
-  counter-reset: step;
-  margin: 8px 0 0;
-  padding: 0;
-}
-.field__value ol li {
+.answer__body > :first-child { margin-top: 0; }
+.answer__body > :last-child { margin-bottom: 0; }
+.answer__p { margin: 0 0 10px; font-size: 0.96rem; }
+.answer__list { margin: 0 0 12px; padding-inline-start: 22px; }
+.answer__list li { margin-bottom: 6px; font-size: 0.96rem; }
+.answer__list li::marker { color: var(--accent); }
+.answer__list.is-ordered { list-style: none; counter-reset: step; padding-inline-start: 0; }
+.answer__list.is-ordered li {
   position: relative;
   counter-increment: step;
   padding-inline-start: 30px;
-  margin-bottom: 8px;
 }
-.field__value ol li::before {
+.answer__list.is-ordered li::before {
   content: counter(step);
   position: absolute;
   inset-inline-start: 0;
-  top: .28em;
-  width: 21px; height: 21px;
+  top: 0;
+  width: 20px; height: 20px;
   display: grid;
   place-items: center;
   border-radius: 50%;
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--accent);
   background: var(--accent-soft);
   border: 1px solid var(--accent-line);
 }
-
-/* --- free-form answer body ----------------------------------------------
-   The answer is no longer a fixed set of labelled fields; it is Arabic prose
-   with optional lists, shaped by the question. These rules only need to make
-   running text and lists readable at the 1.85 line-height Arabic wants. */
-.answer__body > :first-child { margin-top: 0; }
-.answer__body > :last-child { margin-bottom: 0; }
-
-.answer__p {
-  margin: 0 0 10px;
-  font-size: 0.97rem;
-}
-
-.answer__list {
-  margin: 0 0 12px;
-  padding-inline-start: 22px;
-}
-.answer__list li {
-  margin-bottom: 6px;
-  font-size: 0.97rem;
-}
-.answer__list li::marker { color: var(--accent); }
-
 .answer__body strong { font-weight: 600; color: var(--text); }
 
 .card__source {
@@ -1092,46 +789,42 @@ body {
   color: var(--text-dim);
 }
 .card__source a { color: var(--accent); word-break: break-all; }
-
-/* An answer can now cite more than one service, so sources are a list.
-   The label switches to «المصادر:» when there is more than one. */
-.card__source-label {
-  font-weight: 600;
-  color: var(--text);
-  margin-bottom: 6px;
-}
-.card__source-row {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 4px;
-}
+.card__source-label { font-weight: 600; color: var(--text); margin-bottom: 8px; }
+.card__source-row { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 6px 8px; margin-bottom: 8px; }
 .card__source-row:last-child { margin-bottom: 0; }
-
-/* Textual attribution — a printed guide or a PDF page with no live URL.
-   Not a link, so it must not look like one, but it is still the source. */
 .card__source-ref { color: var(--text-dim); }
 
-/* Official vs non-official source. The scraper accepts arbitrary URLs, so a
-   citizen must be able to tell a ministry page from a blog without reading
-   the URL. Green = *.gov.om; amber = anything else. Deliberately amber and
-   not red: a non-government source is a caution, not an error. */
+/* Numbered like a research answer's citation list — a detail cue that also
+   makes several sources easy to tell apart at a glance. */
+.srcnum {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 18px; height: 18px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: var(--accent-2-soft);
+  color: var(--accent-2);
+  font-size: 0.66rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+}
+
 .srcflag {
   display: inline-block;
-  font-size: 0.68rem;
+  font-size: 0.66rem;
   font-weight: 700;
   padding: 2px 9px;
   border-radius: var(--r-pill);
-  margin-inline-end: 7px;
   border: 1px solid currentColor;
 }
-.srcflag--gov   { color: var(--accent); background: var(--accent-soft); }
-.srcflag--other { color: var(--warn);   background: var(--warn-soft); }
+.srcflag--gov { color: var(--accent); background: var(--accent-soft); }
+.srcflag--other { color: var(--warn); background: var(--warn-soft); }
 
 .conf {
   display: inline-block;
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   font-weight: 600;
   padding: 2px 10px;
   border-radius: var(--r-pill);
@@ -1141,68 +834,68 @@ body {
 .conf--high { background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent-line); }
 .conf--partial { background: var(--warn-soft); color: var(--warn); border: 1px solid var(--warn); }
 
+/* --- 9. related-services follow-ups ---------------------------------------
+   Once an answer names its authority, its siblings in that same authority
+   (from the SAME directory payload the browse grid uses) become one-tap
+   follow-ups — no extra request, no backend change. */
+.related { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border); }
+.related__label { font-size: 0.76rem; font-weight: 600; color: var(--text-dim); margin-bottom: 8px; }
+.related__list { display: flex; flex-wrap: wrap; gap: 7px; }
+.related__chip {
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 7px 14px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--accent);
+  cursor: pointer;
+  transition: background var(--fast), color var(--fast);
+}
+.related__chip:hover { background: var(--accent); color: #fff; }
+
 /* --- 10. clarifying options, refusal, error --------------------------- */
-.options { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 14px; }
+.options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .option {
   font-family: inherit;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-weight: 600;
-  padding: 9px 18px;
+  padding: 8px 16px;
   border-radius: var(--r-pill);
   border: 1px solid var(--accent);
   background: transparent;
   color: var(--accent);
   cursor: pointer;
-  transition: background var(--fast) var(--ease), color var(--fast) var(--ease),
-              transform var(--fast) var(--ease-out), box-shadow var(--fast);
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease), transform var(--fast) var(--ease-out);
 }
-.option:hover:not(:disabled) {
-  background: linear-gradient(145deg, var(--accent-bright), var(--accent-strong));
-  color: #fff;
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-accent);
-}
+.option:hover:not(:disabled) { background: var(--accent); color: #fff; transform: translateY(-1px); }
 .option:active:not(:disabled) { transform: translateY(0) scale(.98); }
 .option:disabled { opacity: .4; cursor: default; }
 
-/* A refusal is an ANSWER ("no grounded source for that"), so it keeps the
-   bot bubble's shape and gains a warm marker — it must not look like a
-   failure, and it must not look like a filled card either. */
-.msg--refusal {
-  border-inline-end: 3px solid var(--danger);
-  background: linear-gradient(90deg, var(--surface), var(--danger-soft));
-}
-
-/* A failure is neither: the request did not complete, and the one useful
-   action is trying again. */
-.msg--error {
-  border-color: var(--danger);
-  background: var(--danger-soft);
-}
-.msg--error .msg__text { color: var(--danger); font-weight: 500; }
+.msg--refusal { border-inline-start: 3px solid var(--danger); padding-inline-start: 15px; }
+.msg--error { color: var(--danger); }
+.msg--error .msg__text { font-weight: 500; }
 .retry {
   font-family: inherit;
-  font-size: 0.85rem;
+  font-size: 0.84rem;
   font-weight: 600;
-  margin-top: 12px;
-  padding: 7px 17px;
+  margin-top: 10px;
+  padding: 6px 16px;
   border-radius: var(--r-pill);
   border: 1px solid var(--danger);
   background: transparent;
   color: var(--danger);
   cursor: pointer;
-  transition: background var(--fast), color var(--fast), transform var(--fast) var(--ease-out);
+  transition: background var(--fast), color var(--fast);
 }
 .retry:hover { background: var(--danger); color: #fff; }
-.retry:active { transform: scale(.97); }
 
 /* --- 11. loading indicator -------------------------------------------- */
 .loading { display: flex; align-items: center; gap: 12px; color: var(--text-dim); }
 .loading__label {
   font-size: 0.85rem;
   font-weight: 500;
-  /* Gradient sweep across the label. Small element, transform-free, and it
-     stops the moment the answer replaces it. */
   background: linear-gradient(90deg, var(--text-dim) 20%, var(--accent) 50%, var(--text-dim) 80%);
   background-size: 220% 100%;
   -webkit-background-clip: text;
@@ -1220,125 +913,18 @@ body {
 .typing span:nth-child(2) { animation-delay: .16s; }
 .typing span:nth-child(3) { animation-delay: .32s; }
 
-/* --- 12. composer + disclaimer ---------------------------------------- */
-.composer {
-  position: relative;
-  z-index: 2;
-  flex: none;
-  display: flex;
-  gap: 10px;
-  padding: 14px 22px;
-  border-top: 1px solid var(--border);
-  background: var(--glass);
-}
-@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .composer {
-    -webkit-backdrop-filter: saturate(180%) blur(16px);
-    backdrop-filter: saturate(180%) blur(16px);
-  }
-}
-.composer__input {
-  flex: 1;
-  min-width: 0;
-  font-family: inherit;
-  /* 16px minimum: anything smaller makes iOS Safari zoom on focus. */
-  font-size: 1rem;
-  padding: 13px 18px;
-  border-radius: var(--r);
-  border: 1px solid var(--border-strong);
-  background: var(--surface-2);
-  color: var(--text);
-  transition: border-color var(--med) var(--ease), background var(--med) var(--ease),
-              box-shadow var(--med) var(--ease);
-}
-.composer__input::placeholder { color: var(--text-dim); opacity: .9; }
-.composer__input:focus {
-  outline: none;
-  border-color: var(--accent);
-  background: var(--surface);
-  box-shadow: 0 0 0 4px var(--accent-soft);
-}
-.composer__input:disabled { opacity: .6; }
-
-.composer__send {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  font-family: inherit;
-  font-size: 1rem;
-  font-weight: 600;
-  padding: 13px 24px;
-  border-radius: var(--r);
-  border: none;
-  background: linear-gradient(145deg, var(--accent-bright), var(--accent-strong));
-  color: #fff;
-  cursor: pointer;
-  box-shadow: var(--shadow-accent);
-  transition: transform var(--fast) var(--ease-out), box-shadow var(--fast),
-              opacity var(--fast), filter var(--fast);
-}
-.composer__send:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.06); }
-.composer__send:active:not(:disabled) { transform: translateY(0) scale(.98); }
-.composer__send:disabled { opacity: .5; cursor: default; box-shadow: none; }
-/* CSS-drawn arrow: no icon font, no SVG file. Points inline-end, so it
-   flips with the document direction. */
-.composer__send-arrow {
-  width: 8px; height: 8px;
-  border-inline-end: 2px solid currentColor;
-  border-block-start: 2px solid currentColor;
-  transform: rotate(45deg);
-  transition: transform var(--fast) var(--ease-out);
-}
-[dir="rtl"] .composer__send-arrow { transform: rotate(-135deg); }
-.composer__send:hover:not(:disabled) .composer__send-arrow { transform: rotate(-135deg) translate(1px, -1px); }
-
-.disclaimer {
-  flex: none;
-  margin: 0;
-  padding: 0 22px calc(14px + env(safe-area-inset-bottom));
-  font-size: 0.72rem;
-  line-height: 1.7;
-  color: var(--text-dim);
-  text-align: center;
-  background: var(--glass);
-}
-
-/* --- 13. keyframes ----------------------------------------------------- */
+/* --- 12. keyframes ------------------------------------------------------- */
 @keyframes rise {
-  from { opacity: 0; transform: translateY(14px); }
+  from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: none; }
 }
 @keyframes card-in {
-  from { opacity: 0; transform: translateY(16px) scale(.985); }
-  to   { opacity: 1; transform: none; }
-}
-/* Rows rise INTO place from below. The panel clips its overflow while it
-   grows, so a row starting above its final position would be sliced off at
-   the top edge for the first frames. */
-@keyframes row-in {
-  from { opacity: 0; transform: translateY(7px); }
+  from { opacity: 0; transform: translateY(14px) scale(.985); }
   to   { opacity: 1; transform: none; }
 }
 @keyframes msg-in {
-  from { opacity: 0; transform: translateY(10px) scale(.99); }
+  from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: none; }
-}
-@keyframes aura {
-  from { background-position: 0% 50%; transform: scale(1); }
-  to   { background-position: 100% 50%; transform: scale(1.06); }
-}
-@keyframes drift-a {
-  from { transform: translate3d(0, 0, 0) scale(1); }
-  to   { transform: translate3d(4vmax, 3vmax, 0) scale(1.12); }
-}
-@keyframes drift-b {
-  from { transform: translate3d(0, 0, 0) scale(1.06); }
-  to   { transform: translate3d(-5vmax, -3vmax, 0) scale(1); }
-}
-@keyframes drift-c {
-  from { transform: translate3d(0, 0, 0) scale(.96); }
-  to   { transform: translate3d(-3vmax, 4vmax, 0) scale(1.08); }
 }
 @keyframes wave {
   0%, 60%, 100% { transform: translateY(0); opacity: .35; }
@@ -1349,56 +935,27 @@ body {
   to   { background-position: -100% 0; }
 }
 
-/* --- 14. responsive ---------------------------------------------------
-   Desktop reads as a centred card; tablet fills the width with a two-column
-   grid; phone is full-bleed with tighter gutters and no wasted vertical
-   space above the thread. */
-@media (max-width: 900px) {
-  .hero { border-radius: var(--r); }
-}
-
+/* --- 13. responsive ------------------------------------------------------ */
 @media (max-width: 640px) {
   body { font-size: 15px; }
-  .shell { border-inline: none; box-shadow: none; }
-  .topbar { padding: 11px 15px; }
-  /* The tile shrinks; the glyph inside it does not. At 38px the 24x18 glyph
-     still clears the gold ring by 3px, and keeping the strokes at their
-     desktop weight is what stops the mark going spindly on a phone. */
-  .brand__mark { width: 38px; height: 38px; border-radius: 11px; }
-  .brand__mark::after { inset: 3px; border-radius: 8px; }
-  .brand__mark::before { width: 18px; height: 18px; margin: -9px 0 0 -9px; }
-  .brand__name { font-size: 1.12rem; }
+  .topbar { padding: 10px 14px; }
+  .topbar__btn-label { display: none; }
+  .topbar__btn { padding: 8px; }
+  .brand__name { font-size: 1.05rem; }
   .brand__tag { display: none; }
-  .thread { padding: 16px 15px 6px; }
-  .hero { padding: 22px 17px 20px; }
-  .hero__text { font-size: 0.94rem; }
-  .hero__chips { gap: 8px; margin-top: 16px; }
-  .chip { font-size: 0.84rem; padding: 7px 14px; }
-  .directory { margin-top: 22px; padding-top: 18px; }
-  /* One column: at a 258px minimum a phone gets a single card anyway, but
-     stating it keeps the cards full-bleed on the narrowest devices. */
+  .hero { padding: 30px 16px 14px; }
+  .hero__stats { flex-wrap: wrap; }
+  .composer-wrap { padding: 8px 14px calc(12px + env(safe-area-inset-bottom)); }
+  .directory { padding: 6px 14px 8px; }
   .directory__list { grid-template-columns: 1fr; }
-  .directory__title { font-size: 1.05rem; }
-  .msg { max-width: 95%; }
-  .composer { padding: 10px 15px; gap: 8px; }
-  .composer__send { padding: 13px 18px; }
-  .composer__send-arrow { display: none; }
-  .disclaimer { padding-inline: 15px; }
+  .messages { padding: 4px 14px 8px; }
+  .msg--user { max-width: 92%; }
 }
 
-/* Coarse pointers get no hover-lift (it fires on tap and looks like a bug)
-   but keep the press states, which are the real feedback on touch. */
 @media (hover: none) {
-  .chip:hover, .auth:hover, .svc__ask:hover, .option:hover, .composer__send:hover {
-    transform: none;
-    box-shadow: var(--shadow-sm);
-  }
+  .chip:hover, .auth:hover, .composer__send:hover, .svc__pill:hover { transform: none; }
 }
 
-/* Respecting this is not optional: for a vestibular-sensitive user the
-   drifting shapes and the hero aura are the difference between a usable
-   page and an unusable one. Everything still WORKS — panels open, filters
-   filter, cards appear — it just arrives instantly. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: .01ms !important;
@@ -1406,6 +963,5 @@ body {
     transition-duration: .01ms !important;
     scroll-behavior: auto !important;
   }
-  .ambient__shape, .ambient__ring, .hero::before { animation: none !important; }
   .thread { scroll-behavior: auto; }
 }
