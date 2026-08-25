@@ -1,19 +1,25 @@
 /* ==========================================================================
    دليل / Daleel — Arabic RTL interface.
 
-   Second redesign pass. The sidebar/ChatGPT-style shell from the first pass
-   read as too bare for what this product actually is — a government
-   services PORTAL with an assistant on top, not a bare chat window — so the
-   structure moved to a single scrolling column: a search-first hero, a
-   dense icon-led directory grid, and the conversation thread, with one
-   composer that lives in normal document flow and STICKS to the bottom of
-   the scroll region once there is enough content to push it there. No JS
-   re-parenting needed for that; see section 6.
+   Third redesign pass. Two things changed structurally from the previous
+   (blue/white portal) pass:
 
-   Palette: blue + white (a "digital government portal" register — trust,
-   official, high-contrast) replacing the previous green/gold Omani-seal
-   identity. The mark is a new abstract sparkle/compass-star glyph — not a
-   letterform — meant to read as "AI guide" rather than as a ministry seal.
+     - The directory moved off the homepage and behind a hamburger button
+       into a slide-in drawer — an index you open on demand, collapsed to
+       an accordion per authority (click to reveal its services), rather
+       than a grid that occupied permanent scroll space.
+     - The composer is a true flex:none sibling of the scrolling thread, not
+       a sticky element living inside it — it cannot drift toward the
+       middle/top of the screen when the thread is short, only ever the
+       bottom of the column.
+
+   Messages now carry a small avatar (bot: the sparkle mark; citizen: a
+   plain person glyph) so each turn's speaker is legible at a glance without
+   reading the text. The served-by model badge is gone — it was internal
+   diagnostic information, not something a citizen needs to see.
+
+   Palette stays blue + white with the manual light/dark/system toggle from
+   the previous pass.
 
    CSS logical properties (inline-start/end, margin-inline, border-start-*)
    are used throughout, so nothing is mirrored by hand.
@@ -22,10 +28,10 @@
      1  tokens                8  answer card + citations
      2  base + a11y           9  related-services follow-ups
      3  app shell             10 clarify / refusal / error
-     4  topbar                11 loading indicator
+     4  topbar + drawer       11 loading indicator
      5  hero + stats          12 keyframes
-     6  composer (sticky)     13 responsive + reduced motion
-     7  directory grid
+     6  composer (fixed)      13 responsive + reduced motion
+     7  messages + avatars
    ========================================================================== */
 
 /* --- 1. tokens ---------------------------------------------------------- */
@@ -78,6 +84,7 @@
   --med: .24s;
 
   --col-w: 50rem;
+  --drawer-w: 320px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -180,9 +187,9 @@ body {
   outline-offset: 2px;
   border-radius: 4px;
 }
-.msg--user :focus-visible,
+.msg--user .msg__content :focus-visible,
 .composer__send:focus-visible,
-.svc__pill:focus-visible,
+.svc__ask:focus-visible,
 .option:focus-visible {
   outline-color: currentColor;
   box-shadow: 0 0 0 4px var(--accent-soft);
@@ -192,12 +199,9 @@ body {
 
 button { font: inherit; color: inherit; }
 
-/* generic 18px line icons: stroke-based, drawn inline per use so the page
-   ships zero icon-font/image requests. */
+/* generic icons: stroke/border-drawn, no icon font or image request. */
 .icon { display: inline-block; width: 16px; height: 16px; flex: none; }
-.icon-plus {
-  position: relative;
-}
+.icon-plus { position: relative; }
 .icon-plus::before, .icon-plus::after {
   content: "";
   position: absolute;
@@ -207,33 +211,68 @@ button { font: inherit; color: inherit; }
 .icon-plus::before { inset-inline-start: 7px; top: 1px; width: 2px; height: 14px; }
 .icon-plus::after { top: 7px; inset-inline-start: 1px; width: 14px; height: 2px; }
 
-/* --- 3. app shell --------------------------------------------------------
-   No sidebar in this pass: one column, topbar + a single scrolling region
-   that holds the hero, the sticky composer, the directory and the thread. */
+.icon-x { position: relative; width: 16px; height: 16px; display: inline-block; flex: none; }
+.icon-x::before, .icon-x::after {
+  content: "";
+  position: absolute;
+  top: 7px; inset-inline-start: 1px;
+  width: 14px; height: 2px;
+  border-radius: 2px;
+  background: currentColor;
+}
+.icon-x::before { transform: rotate(45deg); }
+.icon-x::after { transform: rotate(-45deg); }
+
+.icon-list { display: flex; flex-direction: column; justify-content: space-between; width: 16px; height: 12px; flex: none; }
+.icon-list span { display: block; height: 2px; border-radius: 2px; background: currentColor; }
+.icon-list span:nth-child(2) { width: 70%; }
+
+/* --- 3. app shell ---------------------------------------------------------
+   One column: topbar, the scrolling thread, and the composer as a fixed
+   flex:none footer. The directory lives in a separate overlay drawer (see
+   section 4), not in this column at all. */
 .app {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100dvh;
   background: var(--paper);
+  overflow: hidden;
 }
 
-/* --- 4. topbar ------------------------------------------------------------ */
+/* --- 4. topbar + drawer ---------------------------------------------------- */
 .topbar {
   flex: none;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
   padding: 12px 22px;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
 }
 
-.brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.icon-btn {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 36px; height: 36px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background var(--fast), color var(--fast);
+}
+.icon-btn:hover { background: var(--accent-soft); color: var(--accent); }
+
+.burger { display: flex; flex-direction: column; gap: 4px; width: 17px; }
+.burger span { display: block; height: 2px; border-radius: 2px; background: currentColor; }
+
+.brand { display: flex; align-items: center; gap: 11px; min-width: 0; flex: 1; }
 
 /* --- the logo mark: a CSS gradient tile + an inline SVG sparkle/compass
-   star. Original to this redesign, and deliberately abstract rather than a
-   letterform — "guide" is carried by the compass motif, not by a دال. */
+   star. Deliberately abstract rather than a letterform — "guide" is carried
+   by the compass motif, not by a دال. */
 .brand__mark {
   flex: none;
   position: relative;
@@ -264,7 +303,25 @@ button { font: inherit; color: inherit; }
   white-space: nowrap;
 }
 
-.topbar__actions { display: flex; align-items: center; gap: 8px; }
+.topbar__actions { display: flex; align-items: center; gap: 8px; flex: none; }
+
+/* Remaining-questions indicator (see the comment on #usage in index.html). */
+.usage {
+  flex: none;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 5px 11px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  background: var(--surface-2);
+  white-space: nowrap;
+  direction: ltr;
+  unicode-bidi: isolate;
+  transition: color var(--fast), border-color var(--fast), background var(--fast);
+}
+.usage--warn { border-color: var(--warn); color: var(--warn); background: var(--warn-soft); }
+.usage--limit { border-color: var(--danger); color: var(--danger); background: var(--danger-soft); }
 .topbar__btn {
   display: inline-flex;
   align-items: center;
@@ -301,22 +358,227 @@ button { font: inherit; color: inherit; }
 .topbar__btn[data-theme="light"] .theme-toggle__icon::before { opacity: 0; }
 .topbar__btn[data-theme="dark"] .theme-toggle__icon::before { inset-inline-start: -1px; width: calc(100% + 2px); }
 
-.badge {
-  flex: none;
-  font-size: 0.7rem;
-  padding: 4px 11px;
-  border-radius: var(--r-pill);
-  border: 1px solid var(--border);
-  color: var(--text-dim);
-  background: var(--surface-2);
-  white-space: nowrap;
-  direction: ltr;
-  unicode-bidi: isolate;
-  transition: opacity var(--med) var(--ease), color var(--fast), border-color var(--fast);
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  background: rgba(6, 12, 24, .45);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--med) var(--ease);
 }
-.badge--idle { opacity: 0; }
-.badge--primary { border-color: var(--accent-line); color: var(--accent); background: var(--accent-soft); }
-.badge--fallback { border-color: var(--warn); color: var(--warn); background: var(--warn-soft); }
+.app.drawer-open .drawer-backdrop { opacity: 1; pointer-events: auto; }
+
+/* The directory: an off-canvas drawer on every viewport size, opened by the
+   hamburger button — an index you reach for, not one that sits in the way
+   of the homepage. inset-inline-start (not transform) so it is correct in
+   RTL with no mirroring math. */
+.drawer {
+  position: fixed;
+  inset-block: 0;
+  inset-inline-start: -100%;
+  width: min(88vw, var(--drawer-w));
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-inline-end: 1px solid var(--border);
+  box-shadow: none;
+  transition: inset-inline-start var(--med) var(--ease-out);
+}
+.app.drawer-open .drawer { inset-inline-start: 0; box-shadow: var(--shadow-lg); }
+
+.drawer__head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 16px 16px 10px;
+}
+.drawer__title { margin: 0; font-size: 1rem; font-weight: 700; letter-spacing: -.01em; }
+
+.drawer .search { position: relative; flex: none; margin: 4px 16px 10px; }
+.search__icon {
+  position: absolute;
+  inset-inline-start: 13px;
+  top: 50%;
+  width: 12px; height: 12px;
+  margin-top: -5px;
+  border: 2px solid var(--text-dim);
+  border-radius: 50%;
+  pointer-events: none;
+  transition: border-color var(--med) var(--ease);
+}
+.search__icon::after {
+  content: "";
+  position: absolute;
+  inset-inline-start: 1px;
+  top: 11px;
+  width: 6px; height: 2px;
+  border-radius: 2px;
+  background: var(--text-dim);
+  transform: rotate(45deg);
+  transition: background var(--med) var(--ease);
+}
+.directory__search {
+  width: 100%;
+  font-family: inherit;
+  font-size: 0.88rem;
+  padding: 9px 14px;
+  padding-inline-start: 36px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text);
+  transition: border-color var(--med) var(--ease), box-shadow var(--med) var(--ease);
+}
+.directory__search::placeholder { color: var(--text-faint); }
+.directory__search:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.search:focus-within .search__icon { border-color: var(--accent); }
+.search:focus-within .search__icon::after { background: var(--accent); }
+
+.directory__list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  /* Generous gap between authorities — the thing that was cramped before. */
+  gap: 14px;
+  padding: 4px 16px 18px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+.directory__empty {
+  margin: 10px 16px 0;
+  padding: 14px 16px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r);
+  font-size: 0.88rem;
+  color: var(--text-dim);
+}
+
+/* --- authority accordion ---
+   NOTE: this card must NOT have `overflow: hidden` — combined with the
+   panel's `grid-template-rows: 0fr` collapse animation below, an
+   overflow-hidden ancestor made Chromium compute the card's auto-height
+   from the collapsed (0fr) state instead of its actual visible content,
+   shrinking every card to ~28px regardless of what was rendered inside.
+   The panel's OWN children already clip the collapsed state (see
+   .auth__panel > *), so the outer card needs no clipping of its own —
+   only rounded corners on the parts that can paint a background. */
+.auth {
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--surface);
+  transition: border-color var(--med) var(--ease);
+  animation: card-in .4s var(--ease) calc(.06s + var(--i, 0) * 35ms) both;
+}
+.auth:hover, .auth.is-open { border-color: var(--accent-line); }
+
+.auth__head {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  font-family: inherit;
+  text-align: start;
+  padding: 12px 14px;
+  border: none;
+  border-radius: var(--r);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  transition: background var(--fast) var(--ease);
+}
+.auth__head:hover { background: var(--accent-soft); }
+.auth__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px; height: 34px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.auth__icon svg { width: 18px; height: 18px; }
+.auth__meta { flex: 1; min-width: 0; }
+.auth__name { font-size: 0.9rem; font-weight: 700; line-height: 1.4; }
+.auth__count { font-size: 0.7rem; color: var(--text-dim); }
+.auth__chev {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px; height: 20px;
+  font-size: 0.64rem;
+  color: var(--text-faint);
+  transition: transform var(--med) var(--ease-out), color var(--fast);
+}
+.auth.is-open .auth__chev { transform: rotate(180deg); color: var(--accent); }
+
+/* Smooth expand/collapse via grid-template-rows 0fr -> 1fr, so the panel
+   grows to exactly its own content height without measuring in JS. */
+.auth__panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  visibility: hidden;
+  opacity: 0;
+  transition: grid-template-rows var(--med) var(--ease-out), opacity var(--med) var(--ease), visibility var(--med) linear;
+}
+.auth.is-open .auth__panel { grid-template-rows: 1fr; visibility: visible; opacity: 1; }
+.auth__panel > .auth__inner,
+.auth__panel > * { min-height: 0; overflow: hidden; }
+
+.svclist { list-style: none; margin: 0; padding: 0 14px 12px; }
+.svc {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+.svc:first-child { border-top: none; }
+.svc__name { flex: 1; min-width: 100px; font-size: 0.85rem; line-height: 1.5; }
+.svc:hover .svc__name { color: var(--accent); }
+.svc__ask {
+  flex: none;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 5px 11px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--accent);
+  cursor: pointer;
+  transition: background var(--fast), color var(--fast);
+}
+.svc__ask:hover { background: var(--accent); color: #fff; border-color: transparent; }
+
+.auth__portal {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 4px 14px 12px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--fast);
+}
+.auth__portal::after { content: "←"; font-size: .9em; }
+.auth__portal:hover { border-bottom-color: var(--accent-line); }
+
+.directory__list.is-refiltered .auth:not([hidden]) {
+  animation: card-in .3s var(--ease) calc(var(--i, 0) * 20ms) both;
+}
 
 /* --- the single scroll region --- */
 .thread {
@@ -339,13 +601,11 @@ button { font: inherit; color: inherit; }
 }
 
 /* --- 5. hero + stats ------------------------------------------------------
-   The search-first landing view. Removed once .app.is-chatting, same as the
-   directory below it — the composer is the only thing that survives both
-   states (see section 6). */
+   The search-first landing view. Removed once .app.is-chatting. */
 .hero {
   max-width: var(--col-w);
   margin: 0 auto;
-  padding: 44px 24px 20px;
+  padding: 40px 24px 28px;
   text-align: center;
 }
 .app.is-chatting .hero { display: none; }
@@ -403,7 +663,7 @@ button { font: inherit; color: inherit; }
   animation: rise .5s var(--ease) .13s both;
 }
 
-/* Populated by script.js from the SAME directory payload the grid below
+/* Populated by script.js from the SAME directory payload the drawer
    renders — one source of truth, no hardcoded coverage numbers. */
 .hero__stats {
   display: flex;
@@ -449,35 +709,49 @@ button { font: inherit; color: inherit; }
 .chip:hover { transform: translateY(-2px); border-color: var(--accent-line); color: var(--accent); background: var(--accent-soft); }
 .chip:active { transform: translateY(0) scale(.98); }
 
-/* --- 6. composer (sticky, not fixed) --------------------------------------
-   Lives in normal document flow between the hero and the directory. With
-   nothing to scroll (the empty state), that puts it right under the hero,
-   reading as a homepage search box. `position: sticky; bottom: 0` then
-   glues it to the viewport's bottom edge once there IS enough content to
-   scroll past it — directory browsing, then the growing message thread —
-   with no JS re-parenting required for either state. */
+.hero__browse {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 24px;
+  padding: 9px 18px;
+  border-radius: var(--r-pill);
+  border: 1px dashed var(--border-strong);
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color var(--fast), color var(--fast), background var(--fast);
+  animation: rise .5s var(--ease) .25s both;
+}
+.hero__browse:hover { border-style: solid; border-color: var(--accent-line); color: var(--accent); background: var(--accent-soft); }
+
+/* --- 6. composer (fixed footer, not sticky) --------------------------------
+   A flex:none sibling of #thread inside .main — always the last thing in
+   the column, always visible, never able to drift upward when the thread
+   is short. */
 .composer-wrap {
-  position: sticky;
-  bottom: 0;
-  z-index: 5;
-  max-width: var(--col-w);
-  margin: 0 auto;
+  flex: none;
   padding: 10px 22px calc(14px + env(safe-area-inset-bottom));
-  background: linear-gradient(var(--paper) 55%, var(--paper) 100%);
+  border-top: 1px solid var(--border);
+  background: var(--surface);
 }
 .composer {
   position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
+  max-width: var(--col-w);
+  margin: 0 auto;
   padding: 9px 8px 9px 18px;
   border-radius: var(--r-lg);
   border: 1px solid var(--border-strong);
-  background: var(--surface);
-  box-shadow: var(--shadow-lg);
-  transition: border-color var(--med) var(--ease), box-shadow var(--med) var(--ease);
+  background: var(--surface-2);
+  transition: border-color var(--med) var(--ease), box-shadow var(--med) var(--ease), background var(--med) var(--ease);
 }
-.composer:focus-within { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft), var(--shadow-lg); }
+.composer:focus-within { border-color: var(--accent); background: var(--surface); box-shadow: 0 0 0 4px var(--accent-soft); }
 .composer__icon {
   flex: none;
   width: 17px; height: 17px;
@@ -535,186 +809,67 @@ button { font: inherit; color: inherit; }
 [dir="rtl"] .composer__send-arrow { transform: rotate(-135deg); }
 
 .disclaimer {
-  margin: 8px 4px 0;
+  max-width: var(--col-w);
+  margin: 8px auto 0;
   font-size: 0.7rem;
   line-height: 1.6;
   color: var(--text-faint);
   text-align: center;
 }
 
-/* --- 7. directory grid -----------------------------------------------------
-   Always-expanded icon cards with the full service list shown as tappable
-   pills — no accordion. Everything a citizen can ask about is visible at a
-   glance, which is the whole point of a browse section. */
-.directory {
-  max-width: var(--col-w);
-  margin: 0 auto;
-  padding: 6px 22px 8px;
-}
-.app.is-chatting .directory { display: none; }
-
-.directory__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 10px 16px;
-  padding: 10px 2px;
-}
-.directory__title {
-  margin: 0;
-  font-size: 1.05rem;
-  font-weight: 700;
-  letter-spacing: -.01em;
-}
-
-.search { position: relative; flex: none; width: 100%; max-width: 280px; }
-.search__icon {
-  position: absolute;
-  inset-inline-start: 13px;
-  top: 50%;
-  width: 12px; height: 12px;
-  margin-top: -5px;
-  border: 2px solid var(--text-dim);
-  border-radius: 50%;
-  pointer-events: none;
-  transition: border-color var(--med) var(--ease);
-}
-.search__icon::after {
-  content: "";
-  position: absolute;
-  inset-inline-start: 1px;
-  top: 11px;
-  width: 6px; height: 2px;
-  border-radius: 2px;
-  background: var(--text-dim);
-  transform: rotate(45deg);
-  transition: background var(--med) var(--ease);
-}
-.directory__search {
-  width: 100%;
-  font-family: inherit;
-  font-size: 0.88rem;
-  padding: 9px 14px;
-  padding-inline-start: 36px;
-  border-radius: var(--r-sm);
-  border: 1px solid var(--border-strong);
-  background: var(--surface);
-  color: var(--text);
-  transition: border-color var(--med) var(--ease), box-shadow var(--med) var(--ease);
-}
-.directory__search::placeholder { color: var(--text-faint); }
-.directory__search:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-}
-.search:focus-within .search__icon { border-color: var(--accent); }
-.search:focus-within .search__icon::after { background: var(--accent); }
-
-.directory__list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(272px, 1fr));
-  align-items: start;
-  gap: 12px;
-  margin-top: 4px;
-}
-.directory__empty {
-  margin: 10px 0 0;
-  padding: 14px 16px;
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--r);
-  font-size: 0.9rem;
-  color: var(--text-dim);
-}
-
-.auth {
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
-  padding: 14px 16px;
-  transition: border-color var(--med) var(--ease), box-shadow var(--med) var(--ease), transform var(--med) var(--ease-out);
-  animation: card-in .45s var(--ease) calc(.15s + var(--i, 0) * 45ms) both;
-}
-.auth:hover { border-color: var(--accent-line); box-shadow: var(--shadow); transform: translateY(-2px); }
-
-.auth__head { display: flex; align-items: center; gap: 11px; }
-.auth__icon {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 36px; height: 36px;
-  border-radius: 10px;
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-.auth__icon svg { width: 19px; height: 19px; }
-.auth__meta { flex: 1; min-width: 0; }
-.auth__name { font-size: 0.94rem; font-weight: 700; line-height: 1.4; }
-.auth__count { font-size: 0.72rem; color: var(--text-dim); }
-
-.svclist { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
-.svc__pill {
-  font-family: inherit;
-  font-size: 0.78rem;
-  font-weight: 500;
-  padding: 6px 12px;
-  border-radius: var(--r-pill);
-  border: 1px solid var(--border-strong);
-  background: var(--surface-2);
-  color: var(--text);
-  cursor: pointer;
-  transition: background var(--fast) var(--ease), color var(--fast) var(--ease), border-color var(--fast);
-}
-.svc__pill:hover { background: var(--accent); color: #fff; border-color: transparent; }
-.svc__pill[hidden] { display: none; }
-
-.auth__portal {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  margin-top: 12px;
-  font-size: 0.74rem;
-  font-weight: 500;
-  color: var(--accent);
-  text-decoration: none;
-  border-bottom: 1px solid transparent;
-  transition: border-color var(--fast);
-}
-.auth__portal::after { content: "←"; font-size: .9em; }
-.auth__portal:hover { border-bottom-color: var(--accent-line); }
-
-.directory__list.is-refiltered .auth:not([hidden]) {
-  animation: card-in .3s var(--ease) calc(var(--i, 0) * 20ms) both;
-}
-
-/* --- messages --------------------------------------------------------- */
+/* --- 7. messages + avatars ------------------------------------------------
+   Each turn is a row: an avatar plus its content. DOM order is
+   [avatar, content] for both roles — in RTL that renders the avatar at the
+   RIGHT edge of the row either way, with content filling inward, so one
+   markup pattern covers both without a role-specific mirror. */
 .messages {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   max-width: var(--col-w);
   margin: 0 auto;
-  padding: 4px 22px 8px;
+  padding: 10px 22px 8px;
 }
 .messages:empty { display: none; }
 
-.msg { max-width: 100%; padding: 12px 2px; animation: msg-in .34s var(--ease-out) both; }
-/* In RTL, flex-start is the right edge: the citizen's own words sit where
-   an Arabic reader starts the line. */
-.msg--user {
-  align-self: flex-start;
-  max-width: 84%;
+.msg {
+  display: flex;
+  gap: 10px;
+  max-width: 100%;
+  padding: 8px 2px;
+  animation: msg-in .34s var(--ease-out) both;
+}
+.msg--user { align-self: flex-start; max-width: 84%; }
+.msg--bot { align-self: stretch; }
+
+.msg__avatar {
+  flex: none;
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+.msg__avatar svg { width: 60%; height: 60%; }
+.msg__avatar--bot {
+  background: linear-gradient(145deg, var(--accent-bright), var(--accent-strong));
+  box-shadow: var(--shadow-accent);
+  color: #fff;
+}
+.msg__avatar--user {
+  background: var(--surface-3);
+  border: 1px solid var(--border-strong);
+  color: var(--text-dim);
+}
+
+.msg__content { flex: 1; min-width: 0; padding-top: 4px; }
+.msg--user .msg__content {
+  flex: none;
+  padding: 11px 16px;
   background: linear-gradient(145deg, var(--accent-bright), var(--accent-strong));
   color: #fff;
-  padding: 11px 16px;
   border-radius: var(--r);
-  border-start-end-radius: 4px;
   box-shadow: var(--shadow-accent);
-  margin: 6px 0;
 }
-.msg--bot { align-self: stretch; }
 .msg__text { white-space: pre-wrap; overflow-wrap: break-word; }
 .msg__meta {
   display: inline-flex;
@@ -836,7 +991,7 @@ button { font: inherit; color: inherit; }
 
 /* --- 9. related-services follow-ups ---------------------------------------
    Once an answer names its authority, its siblings in that same authority
-   (from the SAME directory payload the browse grid uses) become one-tap
+   (from the SAME directory payload the drawer uses) become one-tap
    follow-ups — no extra request, no backend change. */
 .related { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border); }
 .related__label { font-size: 0.76rem; font-weight: 600; color: var(--text-dim); margin-bottom: 8px; }
@@ -919,7 +1074,7 @@ button { font: inherit; color: inherit; }
   to   { opacity: 1; transform: none; }
 }
 @keyframes card-in {
-  from { opacity: 0; transform: translateY(14px) scale(.985); }
+  from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: none; }
 }
 @keyframes msg-in {
@@ -938,22 +1093,21 @@ button { font: inherit; color: inherit; }
 /* --- 13. responsive ------------------------------------------------------ */
 @media (max-width: 640px) {
   body { font-size: 15px; }
-  .topbar { padding: 10px 14px; }
+  .topbar { padding: 10px 14px; gap: 8px; }
   .topbar__btn-label { display: none; }
   .topbar__btn { padding: 8px; }
   .brand__name { font-size: 1.05rem; }
   .brand__tag { display: none; }
-  .hero { padding: 30px 16px 14px; }
+  .hero { padding: 30px 16px 22px; }
   .hero__stats { flex-wrap: wrap; }
   .composer-wrap { padding: 8px 14px calc(12px + env(safe-area-inset-bottom)); }
-  .directory { padding: 6px 14px 8px; }
-  .directory__list { grid-template-columns: 1fr; }
-  .messages { padding: 4px 14px 8px; }
+  .messages { padding: 6px 14px 8px; }
   .msg--user { max-width: 92%; }
+  .drawer { width: min(90vw, 300px); }
 }
 
 @media (hover: none) {
-  .chip:hover, .auth:hover, .composer__send:hover, .svc__pill:hover { transform: none; }
+  .chip:hover, .composer__send:hover, .svc__ask:hover { transform: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

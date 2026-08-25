@@ -65,6 +65,11 @@ app = Flask(
     static_folder=str(BASE_DIR / "static"),
 )
 
+# Exposes X-RateLimit-Limit / -Remaining / -Reset on every response, so the
+# frontend can show a citizen their own remaining-questions count instead of
+# them finding the limit only by hitting the 429.
+app.config["RATELIMIT_HEADERS_ENABLED"] = True
+
 limiter = Limiter(key_func=get_remote_address, app=app,
                   default_limits=["100 per hour"])
 

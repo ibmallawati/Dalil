@@ -17,18 +17,19 @@ const threadEl = document.getElementById("thread");
 const formEl = document.getElementById("composer");
 const inputEl = document.getElementById("input");
 const sendBtn = document.getElementById("send");
-const servedByEl = document.getElementById("served-by");
 
 const newChatEl = document.getElementById("new-chat");
 const themeToggleEl = document.getElementById("theme-toggle");
 const themeColorMetaEl = document.getElementById("theme-color-meta");
+const menuToggleEl = document.getElementById("menu-toggle");
+const drawerCloseEl = document.getElementById("drawer-close");
+const drawerBackdropEl = document.getElementById("drawer-backdrop");
+const openDirectoryEl = document.getElementById("open-directory");
+const usageEl = document.getElementById("usage");
 
 const history = [] ;
 let clarifyCount = 0;
 let busy = false;
-// The model at the head of the failover chain. The first answer defines it;
-// anything different afterwards means we have fallen down the chain.
-let primaryModel = null;
 // Set by initDirectory() once the coverage payload is parsed. renderAnswer()
 // reads it to offer follow-up services from the SAME authority — no second
 // request, no backend change, just the payload the browse grid already has.
@@ -91,6 +92,20 @@ newChatEl.addEventListener("click", () => {
   location.reload();
 });
 
+// --- directory drawer -------------------------------------------------------
+// The index is opened on demand rather than living inline on the homepage.
+function setDrawer(open) {
+  shellEl.classList.toggle("drawer-open", open);
+  menuToggleEl.setAttribute("aria-expanded", open ? "true" : "false");
+}
+menuToggleEl.addEventListener("click", () => setDrawer(!shellEl.classList.contains("drawer-open")));
+drawerCloseEl.addEventListener("click", () => setDrawer(false));
+drawerBackdropEl.addEventListener("click", () => setDrawer(false));
+if (openDirectoryEl) openDirectoryEl.addEventListener("click", () => setDrawer(true));
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && shellEl.classList.contains("drawer-open")) setDrawer(false);
+});
+
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -102,11 +117,29 @@ function scrollToEnd() {
   threadEl.scrollTop = threadEl.scrollHeight;
 }
 
+// --- avatars ---------------------------------------------------------------
+// A small, fixed mark per role — the sparkle for دليل, a plain person glyph
+// for the citizen — so who is speaking is legible without reading the text.
+const BOT_AVATAR_SVG =
+  '<svg viewBox="0 0 24 24" fill="currentColor"><polygon points="12,3 14,10 21,12 14,14 12,21 10,14 3,12 10,10"/></svg>';
+const USER_AVATAR_SVG =
+  '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="8.5" r="4"/>' +
+  '<path d="M4 20c0-4.4 3.6-8 8-8s8 3.6 8 8Z"/></svg>';
+
 function bubble(role) {
-  const node = el("div", "msg " + (role === "user" ? "msg--user" : "msg--bot"));
-  messagesEl.appendChild(node);
+  const isUser = role === "user";
+  const row = el("div", "msg " + (isUser ? "msg--user" : "msg--bot"));
+
+  const avatar = el("div", "msg__avatar " + (isUser ? "msg__avatar--user" : "msg__avatar--bot"));
+  avatar.setAttribute("aria-hidden", "true");
+  avatar.innerHTML = isUser ? USER_AVATAR_SVG : BOT_AVATAR_SVG;
+
+  const content = el("div", "msg__content");
+
+  row.append(avatar, content);
+  messagesEl.appendChild(row);
   scrollToEnd();
-  return node;
+  return content;
 }
 
 // --- loading state -------------------------------------------------------
@@ -131,18 +164,20 @@ function showLoading() {
   return node;
 }
 
-// Which model answered. Quiet, but present: mid-demo it says whether we are
-// on the primary model or already down the failover chain.
-function updateServedBy(model) {
-  if (!model) return;
-  if (!primaryModel) primaryModel = model;
-  servedByEl.textContent = model;
-  servedByEl.className =
-    "badge " + (model === primaryModel ? "badge--primary" : "badge--fallback");
-  servedByEl.title =
-    model === primaryModel
-      ? "النموذج الأساسي"
-      : "نموذج احتياطي — تم التبديل تلقائياً";
+// Read from the /chat response's X-RateLimit-* headers (Flask-Limiter,
+// enabled server-side via RATELIMIT_HEADERS_ENABLED) rather than tracked in
+// this file — the server is the one enforcing the limit, so it is the only
+// honest source for how much of it is left.
+function updateUsage(limitHeader, remainingHeader) {
+  const limit = Number(limitHeader);
+  const remaining = Number(remainingHeader);
+  if (!Number.isFinite(limit) || !Number.isFinite(remaining) || limit <= 0) return;
+
+  usageEl.hidden = false;
+  usageEl.textContent = `${Math.max(remaining, 0)}/${limit}`;
+  usageEl.title = `الأسئلة المتبقية خلال الدقيقة الحالية: ${Math.max(remaining, 0)} من ${limit}`;
+  usageEl.classList.toggle("usage--limit", remaining <= 0);
+  usageEl.classList.toggle("usage--warn", remaining > 0 && remaining <= Math.ceil(limit * 0.25));
 }
 
 // --- markdown subset -----------------------------------------------------
@@ -407,6 +442,11 @@ async function deliver(serviceId) {
       }),
     });
 
+    updateUsage(
+      response.headers.get("X-RateLimit-Limit"),
+      response.headers.get("X-RateLimit-Remaining")
+    );
+
     let data = null;
     try {
       data = await response.json();
@@ -422,7 +462,6 @@ async function deliver(serviceId) {
       return;
     }
 
-    updateServedBy(data.served_by);
     renderReply(placeholder, data);
 
     // Only the visible reply goes back into the history. Card fields do
@@ -443,8 +482,11 @@ async function deliver(serviceId) {
 function send(text, serviceId) {
   if (busy) return;
 
-  // The hero and the directory grid have done their job the moment a
-  // conversation starts.
+  // Picking a service from the drawer should return the citizen to the
+  // conversation, not leave the drawer covering the answer that arrives.
+  setDrawer(false);
+
+  // The hero has done its job the moment a conversation starts.
   if (!shellEl.classList.contains("is-chatting")) {
     shellEl.classList.add("is-chatting");
     const greeting = bubble("bot");
@@ -547,11 +589,30 @@ function iconFor(authority) {
   return ICONS[AUTHORITY_ICON[authority.id] || "globe"] || ICONS.globe;
 }
 
+// Open/closed state lives in a class rather than in the `hidden` attribute,
+// because `hidden` is display:none and display cannot be transitioned. The
+// CSS animates the panel with grid-template-rows 0fr -> 1fr (so it grows to
+// exactly its own content height, even after the filter changes how many
+// rows are in it) and uses `visibility` to keep a closed panel out of the
+// tab order and the accessibility tree.
+function setExpanded(entry, expanded) {
+  entry.card.classList.toggle("is-open", expanded);
+  entry.head.setAttribute("aria-expanded", expanded ? "true" : "false");
+}
+function isExpanded(entry) {
+  return entry.card.classList.contains("is-open");
+}
+
 function buildAuthority(authority, index) {
   const card = el("article", "auth");
   card.style.setProperty("--i", String(Math.min(index, 14)));
+  const panelId = `services-${authority.id}`;
 
-  const head = el("div", "auth__head");
+  const head = el("button", "auth__head");
+  head.type = "button";
+  head.setAttribute("aria-expanded", "false");
+  head.setAttribute("aria-controls", panelId);
+
   const icon = el("span", "auth__icon");
   icon.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${iconFor(authority)}</svg>`;
   icon.setAttribute("aria-hidden", "true");
@@ -561,18 +622,35 @@ function buildAuthority(authority, index) {
   meta.appendChild(el("h3", "auth__name", authority.name_ar));
   meta.appendChild(el("span", "auth__count", arabicCount(authority.services.length, SERVICE_WORDS)));
   head.appendChild(meta);
-  card.appendChild(head);
 
-  const pills = el("div", "svclist");
+  const chev = el("span", "auth__chev", "▾");
+  chev.setAttribute("aria-hidden", "true");
+  head.appendChild(chev);
+
+  const panel = el("div", "auth__panel");
+  panel.id = panelId;
+
+  // Single wrapper inside the panel, and it has to stay single: the panel is
+  // the animating grid, and a second child would land in an implicit row
+  // that the 0fr collapse does not cover — the list would clip while the
+  // portal link stayed visible.
+  const inner = el("div", "auth__inner");
+
+  const list = el("ul", "svclist");
   const rows = authority.services.map((service) => {
-    const btn = el("button", "svc__pill", service.name_ar);
-    btn.type = "button";
-    btn.title = `اسأل عن: ${service.name_ar}`;
-    btn.addEventListener("click", () => send(service.name_ar, service.service_id));
-    pills.appendChild(btn);
-    return { service, node: btn };
+    const row = el("li", "svc");
+    row.appendChild(el("span", "svc__name", service.name_ar));
+
+    const ask = el("button", "svc__ask", "اسأل");
+    ask.type = "button";
+    ask.title = `اسأل عن: ${service.name_ar}`;
+    ask.addEventListener("click", () => send(service.name_ar, service.service_id));
+    row.appendChild(ask);
+
+    list.appendChild(row);
+    return { service, node: row };
   });
-  card.appendChild(pills);
+  inner.appendChild(list);
 
   // The official portal, for the services this authority has that Daleel
   // does not document yet.
@@ -581,10 +659,15 @@ function buildAuthority(authority, index) {
     link.href = authority.portal_url;
     link.target = "_blank";
     link.rel = "noopener noreferrer";
-    card.appendChild(link);
+    inner.appendChild(link);
   }
+  panel.appendChild(inner);
 
-  return { authority, card, rows };
+  const entry = { authority, card, head, panel, rows };
+  head.addEventListener("click", () => setExpanded(entry, !isExpanded(entry)));
+
+  card.append(head, panel);
+  return entry;
 }
 
 function initDirectory() {
@@ -594,13 +677,15 @@ function initDirectory() {
   try {
     authorities = JSON.parse(dirDataEl.textContent) || [];
   } catch (error) {
-    // A broken directory must not take the chat down with it: the composer
-    // above is the primary way in, and it does not depend on this list.
-    directoryEl.hidden = true;
-    return;
+    authorities = [];
   }
   if (!authorities.length) {
+    // A broken/empty directory must not take the chat down with it: the
+    // composer is the primary way in and does not depend on this list. Hide
+    // the drawer and every button that would otherwise open an empty one.
     directoryEl.hidden = true;
+    menuToggleEl.hidden = true;
+    if (openDirectoryEl) openDirectoryEl.hidden = true;
     return;
   }
   directoryAuthorities = authorities;
@@ -658,6 +743,11 @@ function initDirectory() {
       const show = authorityHit || matches > 0;
       entry.card.hidden = !show;
       if (show) visible += 1;
+
+      // While searching, open every surviving card so the match is on
+      // screen without a second tap. Clearing the box restores the
+      // collapsed default rather than leaving every card open.
+      setExpanded(entry, Boolean(query) && show);
     });
 
     dirEmptyEl.hidden = visible > 0;

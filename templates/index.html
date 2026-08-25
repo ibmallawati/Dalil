@@ -28,65 +28,112 @@
 
   <div id="shell" class="app">
 
-    <header class="topbar">
-      <div class="brand">
-        <!-- The mark: a CSS gradient tile (blue) holding an inline SVG
-             sparkle/compass-star, original to this redesign — not a
-             letterform, so it reads as an abstract "guide" mark rather than
-             a generic wordmark tile. -->
-        <span class="brand__mark" aria-hidden="true">
-          <svg class="brand__spark" viewBox="0 0 48 48" fill="none">
-            <polygon points="24,8 28,20 40,24 28,28 24,40 20,28 8,24 20,20" fill="#ffffff" />
-            <circle cx="24" cy="24" r="3.2" fill="#bcd4ff" />
-          </svg>
-        </span>
-        <span class="brand__names">
-          <span class="brand__name">دليل</span>
-          <span class="brand__tag">مساعد الخدمات الحكومية</span>
-        </span>
+    <div id="drawer-backdrop" class="drawer-backdrop"></div>
+
+    <!-- The directory, moved behind a menu button rather than living inline
+         on the homepage — an index you open on demand, not scroll past. -->
+    <aside id="directory" class="drawer" aria-label="فهرس الجهات الحكومية">
+      <div class="drawer__head">
+        <h2 id="directory-title" class="drawer__title">الجهات الحكومية وخدماتها</h2>
+        <button id="drawer-close" class="icon-btn" type="button" aria-label="إغلاق الفهرس">
+          <span class="icon-x" aria-hidden="true"></span>
+        </button>
       </div>
 
-      <div class="topbar__actions">
-        <button id="new-chat" class="topbar__btn" type="button" title="محادثة جديدة">
-          <span class="icon icon-plus" aria-hidden="true"></span>
-          <span class="topbar__btn-label">محادثة جديدة</span>
-        </button>
-        <button id="theme-toggle" class="topbar__btn topbar__btn--icon" type="button" data-theme="system" title="تبديل المظهر">
-          <span class="theme-toggle__icon" aria-hidden="true"></span>
-        </button>
-        <span id="served-by" class="badge badge--idle" title="النموذج الذي أجاب"></span>
+      <label class="sr-only" for="directory-search">ابحث عن جهة أو خدمة</label>
+      <div class="search">
+        <span class="search__icon" aria-hidden="true"></span>
+        <input
+          id="directory-search"
+          class="directory__search"
+          type="search"
+          placeholder="ابحث — مثال: جواز، سجل تجاري"
+        />
       </div>
-    </header>
 
-    <main id="thread" class="thread" tabindex="-1">
+      <div id="directory-list" class="directory__list"></div>
+      <p id="directory-empty" class="directory__empty" hidden>لا توجد جهة أو خدمة مطابقة لبحثك.</p>
+    </aside>
 
-      <section id="hero" class="hero">
-        <span class="hero__mark" aria-hidden="true">
-          <svg class="brand__spark" viewBox="0 0 48 48" fill="none">
-            <polygon points="24,6 29,19 42,24 29,29 24,42 19,29 6,24 19,19" fill="#ffffff" />
-            <circle cx="24" cy="24" r="3.6" fill="#bcd4ff" />
-          </svg>
-        </span>
-        <p class="hero__eyebrow">
-          <span class="hero__dot" aria-hidden="true"></span>
-          مدعوم بالذكاء الاصطناعي ومصادر رسمية موثّقة
-        </p>
-        <h1 class="hero__title">دليلك إلى كل خدمة حكومية عُمانية</h1>
-        <p class="hero__text">
-          اسأل عن أي إجراء وستحصل على المستندات والخطوات والرسوم والمدة
-          المتوقعة، مع رابط المصدر الرسمي في كل إجابة.
-        </p>
+    <div class="main">
 
-        <div id="hero-stats" class="hero__stats" aria-hidden="true"></div>
+      <header class="topbar">
+        <button id="menu-toggle" class="icon-btn" type="button" aria-controls="directory" aria-expanded="false" aria-label="فتح فهرس الجهات والخدمات">
+          <span class="burger" aria-hidden="true"><span></span><span></span><span></span></span>
+        </button>
 
-        <div class="hero__chips" role="group" aria-label="أسئلة مقترحة">
-          <button type="button" class="chip" data-q="كيف أجدد جواز السفر؟">تجديد جواز السفر</button>
-          <button type="button" class="chip" data-q="ما هي إجراءات تجديد البطاقة الشخصية؟">تجديد البطاقة الشخصية</button>
-          <button type="button" class="chip" data-q="كيف أسجل سجل تجاري جديد؟">تسجيل سجل تجاري</button>
-          <button type="button" class="chip" data-q="ما هي خطوات نقل ملكية مركبة؟">نقل ملكية مركبة</button>
+        <div class="brand">
+          <!-- The mark: a CSS gradient tile (blue) holding an inline SVG
+               sparkle/compass-star, original to this redesign — not a
+               letterform, so it reads as an abstract "guide" mark rather
+               than a generic wordmark tile. -->
+          <span class="brand__mark" aria-hidden="true">
+            <svg class="brand__spark" viewBox="0 0 48 48" fill="none">
+              <polygon points="24,8 28,20 40,24 28,28 24,40 20,28 8,24 20,20" fill="#ffffff" />
+              <circle cx="24" cy="24" r="3.2" fill="#bcd4ff" />
+            </svg>
+          </span>
+          <span class="brand__names">
+            <span class="brand__name">دليل</span>
+            <span class="brand__tag">مساعد الخدمات الحكومية</span>
+          </span>
         </div>
-      </section>
 
+        <div class="topbar__actions">
+          <!-- Populated from the /chat response's X-RateLimit-* headers —
+               how many questions are left before the per-minute limit, so a
+               citizen sees it coming instead of only finding it at a 429. -->
+          <span id="usage" class="usage" hidden title="الأسئلة المتبقية خلال الدقيقة الحالية"></span>
+          <button id="new-chat" class="topbar__btn" type="button" title="محادثة جديدة">
+            <span class="icon icon-plus" aria-hidden="true"></span>
+            <span class="topbar__btn-label">محادثة جديدة</span>
+          </button>
+          <button id="theme-toggle" class="topbar__btn topbar__btn--icon" type="button" data-theme="system" title="تبديل المظهر">
+            <span class="theme-toggle__icon" aria-hidden="true"></span>
+          </button>
+        </div>
+      </header>
+
+      <main id="thread" class="thread" tabindex="-1">
+
+        <section id="hero" class="hero">
+          <span class="hero__mark" aria-hidden="true">
+            <svg class="brand__spark" viewBox="0 0 48 48" fill="none">
+              <polygon points="24,6 29,19 42,24 29,29 24,42 19,29 6,24 19,19" fill="#ffffff" />
+              <circle cx="24" cy="24" r="3.6" fill="#bcd4ff" />
+            </svg>
+          </span>
+          <p class="hero__eyebrow">
+            <span class="hero__dot" aria-hidden="true"></span>
+            مدعوم بالذكاء الاصطناعي ومصادر رسمية موثّقة
+          </p>
+          <h1 class="hero__title">دليلك إلى كل خدمة حكومية عُمانية</h1>
+          <p class="hero__text">
+            اسأل عن أي إجراء وستحصل على المستندات والخطوات والرسوم والمدة
+            المتوقعة، مع رابط المصدر الرسمي في كل إجابة.
+          </p>
+
+          <div id="hero-stats" class="hero__stats" aria-hidden="true"></div>
+
+          <div class="hero__chips" role="group" aria-label="أسئلة مقترحة">
+            <button type="button" class="chip" data-q="كيف أجدد جواز السفر؟">تجديد جواز السفر</button>
+            <button type="button" class="chip" data-q="ما هي إجراءات تجديد البطاقة الشخصية؟">تجديد البطاقة الشخصية</button>
+            <button type="button" class="chip" data-q="كيف أسجل سجل تجاري جديد؟">تسجيل سجل تجاري</button>
+            <button type="button" class="chip" data-q="ما هي خطوات نقل ملكية مركبة؟">نقل ملكية مركبة</button>
+          </div>
+
+          <button type="button" id="open-directory" class="hero__browse">
+            <span class="icon-list" aria-hidden="true"><span></span><span></span><span></span></span>
+            تصفّح كل الجهات والخدمات
+          </button>
+        </section>
+
+        <section id="messages" class="messages" aria-live="polite" aria-busy="false"></section>
+      </main>
+
+      <!-- Always at the bottom of the column — a flex sibling of #thread,
+           never inside its scroll region, so it cannot drift upward when
+           there is little content (an empty thread, a single short reply). -->
       <div class="composer-wrap">
         <form id="composer" class="composer" autocomplete="off">
           <label class="sr-only" for="input">اكتب سؤالك</label>
@@ -107,28 +154,7 @@
         </p>
       </div>
 
-      <section id="directory" class="directory" aria-labelledby="directory-title">
-        <div class="directory__head">
-          <h2 id="directory-title" class="directory__title">الجهات الحكومية وخدماتها</h2>
-          <label class="sr-only" for="directory-search">ابحث عن جهة أو خدمة</label>
-          <div class="search">
-            <span class="search__icon" aria-hidden="true"></span>
-            <input
-              id="directory-search"
-              class="directory__search"
-              type="search"
-              placeholder="ابحث — مثال: جواز، سجل تجاري"
-            />
-          </div>
-        </div>
-
-        <div id="directory-list" class="directory__list"></div>
-        <p id="directory-empty" class="directory__empty" hidden>لا توجد جهة أو خدمة مطابقة لبحثك.</p>
-      </section>
-
-      <section id="messages" class="messages" aria-live="polite" aria-busy="false"></section>
-    </main>
-
+    </div>
   </div>
 
   <script id="directory-data" type="application/json">{{ directory | tojson }}</script>
