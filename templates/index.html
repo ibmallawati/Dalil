@@ -4,148 +4,144 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="description" content="دليل — مساعد يجيب عن إجراءات الخدمات الحكومية في سلطنة عُمان اعتماداً على المصادر الرسمية." />
-  <!-- Deep Omani green: the anchor of the palette, so the browser chrome on
-       Android matches the header instead of fighting it. -->
-  <meta name="theme-color" content="#0f5f3d" />
-  <!-- Tells the UA to render native controls (the search field's clear
-       button, scrollbars) in whichever scheme is active, so they stop
-       looking pasted-on in dark mode. -->
+  <meta id="theme-color-meta" name="theme-color" content="#f5f8fd" />
   <meta name="color-scheme" content="light dark" />
   <title>دليل — مساعد الخدمات الحكومية في سلطنة عُمان</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <!-- IBM Plex Sans Arabic: designed for Arabic UI text, not a Latin face
-       with Arabic bolted on. Falls back to the system Arabic stack. -->
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <!-- Applied before first paint, so a returning visitor with a saved theme
+       never sees a light flash before dark takes over. -->
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("daleel:theme");
+        if (t === "light" || t === "dark") {
+          document.documentElement.setAttribute("data-theme", t);
+        }
+      } catch (error) {}
+    })();
+  </script>
 </head>
 <body>
 
-  <!-- Ambient background: soft floating shapes in green, sand and gold.
-       Purely decorative, so it is aria-hidden and pointer-events:none — it
-       can never intercept a tap or reach a screen reader. Each shape is a
-       plain radial gradient moved with `transform` only, which the compositor
-       handles without repainting; no blur filters, no canvas, no images. -->
-  <div class="ambient" aria-hidden="true">
-    <span class="ambient__shape ambient__shape--green"></span>
-    <span class="ambient__shape ambient__shape--sand"></span>
-    <span class="ambient__shape ambient__shape--gold"></span>
-    <span class="ambient__ring"></span>
-  </div>
+  <div id="shell" class="app">
 
-  <div id="shell" class="shell">
+    <div id="drawer-backdrop" class="drawer-backdrop"></div>
 
-    <header class="topbar">
-      <div class="brand">
-        <!-- The logo, drawn entirely in CSS (see style.css, "logo mark"):
-             a seal tile holding an abstracted letter د whose baseline runs
-             on as a path and ends in a gold arrowhead. No image, no SVG, no
-             icon font — three empty spans and two pseudo-elements.
-
-             Decorative, so it stays aria-hidden: the wordmark «دليل»
-             immediately beside it is the accessible name. -->
-        <span class="brand__mark" aria-hidden="true">
-          <span class="brand__glyph">
-            <span class="brand__dal"></span>
-            <span class="brand__arrow"></span>
-          </span>
-        </span>
-        <span class="brand__names">
-          <span class="brand__name">دليل</span>
-          <span class="brand__tag">مساعد الخدمات الحكومية في سلطنة عُمان</span>
-        </span>
+    <!-- The directory, moved behind a menu button rather than living inline
+         on the homepage — an index you open on demand, not scroll past. -->
+    <aside id="directory" class="drawer" aria-label="فهرس الجهات الحكومية">
+      <div class="drawer__head">
+        <h2 id="directory-title" class="drawer__title">الجهات الحكومية وخدماتها</h2>
+        <button id="drawer-close" class="icon-btn" type="button" aria-label="إغلاق الفهرس">
+          <span class="icon-x" aria-hidden="true"></span>
+        </button>
       </div>
-      <!-- Which model answered. Small and quiet, but present: mid-demo it
-           says whether we are on the primary model or already down the
-           failover chain, and a judge seeing a fallback answer with no
-           visible degradation is the resilience argument making itself. -->
-      <span id="served-by" class="badge badge--idle" title="النموذج الذي أجاب"></span>
-    </header>
 
-    <main id="thread" class="thread" tabindex="-1">
+      <label class="sr-only" for="directory-search">ابحث عن جهة أو خدمة</label>
+      <div class="search">
+        <span class="search__icon" aria-hidden="true"></span>
+        <input
+          id="directory-search"
+          class="directory__search"
+          type="search"
+          placeholder="ابحث — مثال: جواز، سجل تجاري"
+        />
+      </div>
 
-      <!-- Hero. Present only until the first question is asked; after that
-           the conversation is the page and the pitch is in the way. -->
-      <section id="hero" class="hero">
-        <p class="hero__eyebrow">
-          <span class="hero__dot" aria-hidden="true"></span>
-          إجابات مسنَدة إلى مصادر رسمية
-        </p>
-        <h1 class="hero__title">
-          اسأل عن أي خدمة حكومية،
-          <span class="hero__accent">واحصل على الإجراء كاملاً</span>
-        </h1>
-        <p class="hero__text">
-          يشرح لك دليل المستندات المطلوبة والخطوات والرسوم والمدة المتوقعة،
-          مع رابط المصدر الرسمي في كل إجابة.
-        </p>
-        <div class="hero__chips" role="group" aria-label="أسئلة مقترحة">
-          <button type="button" class="chip" data-q="كيف أجدد جواز السفر؟">تجديد جواز السفر</button>
-          <button type="button" class="chip" data-q="ما هي إجراءات تجديد البطاقة الشخصية؟">تجديد البطاقة الشخصية</button>
-          <button type="button" class="chip" data-q="كيف أسجل سجل تجاري جديد؟">تسجيل سجل تجاري</button>
-          <button type="button" class="chip" data-q="ما هي خطوات نقل ملكية مركبة؟">نقل ملكية مركبة</button>
-        </div>
-      </section>
+      <div id="directory-list" class="directory__list"></div>
+      <p id="directory-empty" class="directory__empty" hidden>لا توجد جهة أو خدمة مطابقة لبحثك.</p>
+    </aside>
 
-      <!-- Browse the coverage map. The chips above are four questions we
-           guessed at; this is every authority and every service Daleel
-           actually documents, so a citizen who does not know what to ask
-           can find it instead of phrasing it. Hidden once the conversation
-           starts, for the same reason the hero is. -->
-      <section id="directory" class="directory" aria-labelledby="directory-title">
-        <div class="directory__head">
-          <h2 id="directory-title" class="directory__title">الجهات الحكومية وخدماتها</h2>
-          <p id="directory-meta" class="directory__meta"></p>
+    <div class="main">
+
+      <header class="topbar">
+        <button id="menu-toggle" class="icon-btn" type="button" aria-controls="directory" aria-expanded="false" aria-label="فتح فهرس الجهات والخدمات">
+          <span class="burger" aria-hidden="true"><span></span><span></span><span></span></span>
+        </button>
+
+        <div class="brand">
+          <!-- The mark: a CSS gradient tile (blue) holding an inline SVG
+               sparkle/compass-star, original to this redesign — not a
+               letterform, so it reads as an abstract "guide" mark rather
+               than a generic wordmark tile. -->
+          <span class="brand__mark" aria-hidden="true">
+            <svg class="brand__spark" viewBox="0 0 48 48" fill="none">
+              <polygon points="24,8 28,20 40,24 28,28 24,40 20,28 8,24 20,20" fill="#ffffff" />
+              <circle cx="24" cy="24" r="3.2" fill="#bcd4ff" />
+            </svg>
+          </span>
+          <span class="brand__names">
+            <span class="brand__name">دليل</span>
+            <span class="brand__tag">مساعد الخدمات الحكومية</span>
+          </span>
         </div>
 
-        <label class="sr-only" for="directory-search">ابحث عن جهة أو خدمة</label>
-        <!-- Wrapper exists to carry the CSS-drawn magnifier and the focus
-             ring. The input keeps its id and class: script.js binds to it. -->
-        <div class="search">
-          <span class="search__icon" aria-hidden="true"></span>
+        <div class="topbar__actions">
+          <button id="new-chat" class="topbar__btn" type="button" title="محادثة جديدة">
+            <span class="icon icon-plus" aria-hidden="true"></span>
+            <span class="topbar__btn-label">محادثة جديدة</span>
+          </button>
+          <button id="theme-toggle" class="topbar__btn topbar__btn--icon" type="button" data-theme="system" title="تبديل المظهر">
+            <span class="theme-toggle__icon" aria-hidden="true"></span>
+          </button>
+        </div>
+      </header>
+
+      <main id="thread" class="thread" tabindex="-1">
+
+        <section id="hero" class="hero">
+          <span class="hero__mark" aria-hidden="true">
+            <svg class="brand__spark" viewBox="0 0 48 48" fill="none">
+              <polygon points="24,6 29,19 42,24 29,29 24,42 19,29 6,24 19,19" fill="#ffffff" />
+              <circle cx="24" cy="24" r="3.6" fill="#bcd4ff" />
+            </svg>
+          </span>
+          <h1 class="hero__title">دليلك إلى كل خدمة حكومية عُمانية</h1>
+          <p class="hero__text">
+            اسأل عن أي إجراء وستحصل على المستندات والخطوات والرسوم والمدة
+            المتوقعة، مع رابط المصدر الرسمي في كل إجابة.
+          </p>
+
+          <div id="hero-stats" class="hero__stats" aria-hidden="true"></div>
+
+          <button type="button" id="open-directory" class="hero__browse">
+            <span class="icon-list" aria-hidden="true"><span></span><span></span><span></span></span>
+            تصفّح كل الجهات والخدمات
+          </button>
+        </section>
+
+        <section id="messages" class="messages" aria-live="polite" aria-busy="false"></section>
+      </main>
+
+      <!-- Always at the bottom of the column — a flex sibling of #thread,
+           never inside its scroll region, so it cannot drift upward when
+           there is little content (an empty thread, a single short reply). -->
+      <div class="composer-wrap">
+        <form id="composer" class="composer" autocomplete="off">
+          <label class="sr-only" for="input">اكتب سؤالك</label>
+          <span class="composer__icon" aria-hidden="true"></span>
           <input
-            id="directory-search"
-            class="directory__search"
-            type="search"
-            placeholder="ابحث عن جهة أو خدمة — مثال: جواز، سجل تجاري"
+            id="input"
+            class="composer__input"
+            type="text"
+            placeholder="اسأل دليل عن أي إجراء حكومي…"
+            enterkeyhint="send"
           />
-        </div>
+          <button id="send" class="composer__send" type="submit" aria-label="إرسال">
+            <span class="composer__send-arrow" aria-hidden="true"></span>
+          </button>
+        </form>
+      </div>
 
-        <div id="directory-list" class="directory__list"></div>
-        <p id="directory-empty" class="directory__empty" hidden>لا توجد جهة أو خدمة مطابقة لبحثك.</p>
-      </section>
-
-      <section id="messages" class="messages" aria-live="polite" aria-busy="false"></section>
-    </main>
-
-    <form id="composer" class="composer" autocomplete="off">
-      <label class="sr-only" for="input">اكتب سؤالك</label>
-      <input
-        id="input"
-        class="composer__input"
-        type="text"
-        placeholder="مثال: ما المستندات المطلوبة لتجديد جواز السفر؟"
-        enterkeyhint="send"
-      />
-      <button id="send" class="composer__send" type="submit">
-        <span class="composer__send-label">إرسال</span>
-        <span class="composer__send-arrow" aria-hidden="true"></span>
-      </button>
-    </form>
-
-    <p class="disclaimer">
-      المعلومات مستندة إلى مصادر رسمية منشورة، ويبقى الرجوع إلى الجهة المختصة هو المرجع النهائي.
-    </p>
-
+    </div>
   </div>
 
-  <!-- The coverage map, straight from data/registry/authorities.json via
-       registry.browse_directory(). Shipped as data rather than as server-
-       rendered markup: the filter needs something to match against that is
-       not the DOM, and the template stays free of hardcoded ministry names.
-       Must precede script.js, which reads it on load. -->
   <script id="directory-data" type="application/json">{{ directory | tojson }}</script>
 
   <script src="{{ url_for('static', filename='script.js') }}"></script>
+
 </body>
 </html>
