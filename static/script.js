@@ -25,7 +25,6 @@ const menuToggleEl = document.getElementById("menu-toggle");
 const drawerCloseEl = document.getElementById("drawer-close");
 const drawerBackdropEl = document.getElementById("drawer-backdrop");
 const openDirectoryEl = document.getElementById("open-directory");
-const usageEl = document.getElementById("usage");
 
 const history = [] ;
 let clarifyCount = 0;
@@ -162,22 +161,6 @@ function showLoading() {
   node.appendChild(wrap);
   scrollToEnd();
   return node;
-}
-
-// Read from the /chat response's X-RateLimit-* headers (Flask-Limiter,
-// enabled server-side via RATELIMIT_HEADERS_ENABLED) rather than tracked in
-// this file — the server is the one enforcing the limit, so it is the only
-// honest source for how much of it is left.
-function updateUsage(limitHeader, remainingHeader) {
-  const limit = Number(limitHeader);
-  const remaining = Number(remainingHeader);
-  if (!Number.isFinite(limit) || !Number.isFinite(remaining) || limit <= 0) return;
-
-  usageEl.hidden = false;
-  usageEl.textContent = `${Math.max(remaining, 0)}/${limit}`;
-  usageEl.title = `الأسئلة المتبقية خلال الدقيقة الحالية: ${Math.max(remaining, 0)} من ${limit}`;
-  usageEl.classList.toggle("usage--limit", remaining <= 0);
-  usageEl.classList.toggle("usage--warn", remaining > 0 && remaining <= Math.ceil(limit * 0.25));
 }
 
 // --- markdown subset -----------------------------------------------------
@@ -441,11 +424,6 @@ async function deliver(serviceId) {
         clarify_count: clarifyCount,
       }),
     });
-
-    updateUsage(
-      response.headers.get("X-RateLimit-Limit"),
-      response.headers.get("X-RateLimit-Remaining")
-    );
 
     let data = null;
     try {
