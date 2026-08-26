@@ -507,10 +507,6 @@ formEl.addEventListener("submit", (event) => {
   if (text) send(text, null);
 });
 
-heroEl.querySelectorAll(".chip").forEach((chip) => {
-  chip.addEventListener("click", () => send(chip.dataset.q, null));
-});
-
 // --- browse: authorities and their services ------------------------------
 // The coverage map, rendered. Every name here came from
 // data/registry/authorities.json via registry.browse_directory() — nothing

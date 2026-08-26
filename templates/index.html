@@ -103,10 +103,6 @@
               <circle cx="24" cy="24" r="3.6" fill="#bcd4ff" />
             </svg>
           </span>
-          <p class="hero__eyebrow">
-            <span class="hero__dot" aria-hidden="true"></span>
-            مدعوم بالذكاء الاصطناعي ومصادر رسمية موثّقة
-          </p>
           <h1 class="hero__title">دليلك إلى كل خدمة حكومية عُمانية</h1>
           <p class="hero__text">
             اسأل عن أي إجراء وستحصل على المستندات والخطوات والرسوم والمدة
@@ -114,13 +110,6 @@
           </p>
 
           <div id="hero-stats" class="hero__stats" aria-hidden="true"></div>
-
-          <div class="hero__chips" role="group" aria-label="أسئلة مقترحة">
-            <button type="button" class="chip" data-q="كيف أجدد جواز السفر؟">تجديد جواز السفر</button>
-            <button type="button" class="chip" data-q="ما هي إجراءات تجديد البطاقة الشخصية؟">تجديد البطاقة الشخصية</button>
-            <button type="button" class="chip" data-q="كيف أسجل سجل تجاري جديد؟">تسجيل سجل تجاري</button>
-            <button type="button" class="chip" data-q="ما هي خطوات نقل ملكية مركبة؟">نقل ملكية مركبة</button>
-          </div>
 
           <button type="button" id="open-directory" class="hero__browse">
             <span class="icon-list" aria-hidden="true"><span></span><span></span><span></span></span>
@@ -149,9 +138,6 @@
             <span class="composer__send-arrow" aria-hidden="true"></span>
           </button>
         </form>
-        <p class="disclaimer">
-          دليل قد يخطئ. تحقق من المعلومات المهمة عبر المصدر الرسمي المرفق.
-        </p>
       </div>
 
     </div>
@@ -160,5 +146,6 @@
   <script id="directory-data" type="application/json">{{ directory | tojson }}</script>
 
   <script src="{{ url_for('static', filename='script.js') }}"></script>
+
 </body>
 </html>
