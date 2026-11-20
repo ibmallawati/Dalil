@@ -119,25 +119,50 @@ The smoke test runs against the service's `onrender.com` URL, which the
 Render API returns. To check the public domain as well:
 
 ```powershell
-curl https://dalil.online/healthz
+curl.exe -s https://dalil.online/healthz
 ```
 
 ## Manual fallback (no script)
+
+These commands are for Windows PowerShell. They use `curl.exe`, not
+`curl`: in Windows PowerShell 5.1, `curl` is an alias for
+`Invoke-WebRequest`, which rejects curl's flags.
 
 ```powershell
 # Deploy
 git push origin main
 
-# Latest deploy's status (needs RENDER_API_KEY)
-curl -H "Authorization: Bearer $env:RENDER_API_KEY" `
+# Latest deploy's status. Needs your Render API key in this session:
+#   $env:RENDER_API_KEY = "rnd_..."
+curl.exe -s -H "Authorization: Bearer $env:RENDER_API_KEY" `
      "https://api.render.com/v1/services/srv-d9abdncs728c73eg8qeg/deploys?limit=1"
 
 # Smoke-test once it's live
-curl https://dalil.online/healthz
-curl -X POST https://dalil.online/chat `
-     -H "Content-Type: application/json" `
-     -d '{"history":[{"role":"user","content":"كم رسوم تجديد جواز السفر؟"}]}'
+curl.exe -s https://dalil.online/healthz
 ```
+
+To send a test question, put it in a UTF-8 file and send the file. Arabic
+typed directly into a `curl.exe` argument can reach the server as `?`
+characters, and the question is then refused as out of scope.
+
+```powershell
+# WriteAllText saves UTF-8 without a BOM. The file goes in %TEMP%, because an
+# untracked file in the repo would stop deploy.ps1's preflight.
+$q = "$env:TEMP\dalil-question.json"
+[IO.File]::WriteAllText($q, '{"history":[{"role":"user","content":"كم رسوم تجديد جواز السفر؟"}]}')
+
+curl.exe -s -X POST https://dalil.online/chat `
+     -H "Content-Type: application/json; charset=utf-8" `
+     --data-binary "@$q"
+```
+
+A working deploy returns `"format":"answer"` and a `"served_by"` model. The
+reply text arrives as `\u` escapes, which is normal. A refusal with
+`"reason":"no_grounding"` for this question usually means the Arabic was
+garbled on the way in.
+
+On macOS or Linux, use plain `curl` with the same flags, and write the file
+with any UTF-8 editor or `printf`.
 
 Or push, then watch the deploy turn green in the dashboard:
 `https://dashboard.render.com/web/srv-d9abdncs728c73eg8qeg`.
