@@ -1,5 +1,5 @@
 ---
-title: Daleel
+title: Dalil
 emoji: 🧭
 colorFrom: green
 colorTo: red
@@ -9,7 +9,9 @@ pinned: false
 short_description: مساعد عربي لإجراءات الخدمات الحكومية في سلطنة عُمان
 ---
 
-# دليل / Daleel
+# دليل / Dalil
+
+**Live: [dalil.online](https://dalil.online)**
 
 An Arabic assistant for Omani government service procedures. Ask how to renew
 a passport, what a civil-ID replacement costs, or which documents a commercial
@@ -29,7 +31,7 @@ guesses.
 ```
 question
    │
-   ├─ L1  registry     does Daleel cover this authority at all?
+   ├─ L1  registry     does Dalil cover this authority at all?
    │                   Arabic keyword match, no model, no embedding.
    │                   An uncovered ministry is refused here, for free.
    │
@@ -53,19 +55,36 @@ traced to.
 
 ## Deployment
 
-Runs as a **Docker Space** on Hugging Face. The `sdk: docker` and
-`app_port: 7860` above are what configure that — the Dockerfile listens on
-`$PORT` and falls back to 7860.
+The live app is at **[https://dalil.online](https://dalil.online)**. It runs
+as a web service on **Render**, built from this repo's `Dockerfile`.
+
+- **Deploys happen on push.** Render watches `main` on GitHub
+  (`ibmallawati/Dalil`) and redeploys on every push. That connection is set in
+  the Render dashboard; there is no `render.yaml` in the repo.
+- **Domain.** `dalil.online` is a custom domain attached to the Render
+  service.
+- **Port.** The app listens on the `$PORT` Render provides and falls back to
+  7860 locally.
+- **Health check.** `GET /healthz` reports the chunks loaded, the coverage
+  and the available models. Use it as the service's health check path.
+
+Step-by-step deploy, verification and rollback are in
+[DEPLOY_README.md](DEPLOY_README.md). Run `.\deploy.ps1` instead of a bare
+`git push`: it checks the tree first and confirms the new commit went live.
+
+The YAML block at the top of this file configures a Hugging Face Docker
+Space, an earlier host. Render ignores it, and the live site does not use
+it.
 
 ### Required secret
 
 | Name | Where | Notes |
 |---|---|---|
-| `LLM_API_KEY` | Space → Settings → **Variables and secrets** → *New secret* | Must be a **secret**, not a variable. Variables are publicly visible. |
+| `LLM_API_KEY` | Render → the service → **Environment** → *Add Environment Variable* | Never commit it. Locally it lives in `.env`, which is gitignored. |
 
 Optional, all with working defaults in
 [`src/chatbot/config.py`](src/chatbot/config.py): `LLM_BASE_URL`, `LLM_MODEL`,
-`EMBED_MODEL`, `LOG_LEVEL`.
+`EMBED_BACKEND`, `EMBED_MODEL`, `EMBED_DIM`, `LOG_LEVEL`.
 
 `LLM_MODEL` accepts a comma-separated failover chain, tried in order:
 
@@ -77,11 +96,26 @@ A per-day quota exhaustion is terminal and moves to the next model; a
 per-minute limit is retried. The model that actually answered is reported in
 the response and shown in the UI.
 
-### First boot is slow
+### Memory and startup
 
-The embedding model (~1.1 GB) downloads on first start and is then cached, and
-the app warms it before serving so the first citizen question is not the one
-that pays for it. Expect a few minutes on a cold Space build.
+Embeddings for questions are computed over HTTPS by default
+(`EMBED_BACKEND=gemini`, `gemini-embedding-001` at 768 dimensions). No model
+is downloaded or loaded at startup, and the app fits in the 512 MB free
+hosts offer. The corpus index is prebuilt and committed in `data/index/`.
+
+At startup the app embeds one test question to check that the key and
+endpoint work. A failure is logged as `embedder_warmup_failed` but does not
+stop the server.
+
+`EMBED_BACKEND=local` switches to `intfloat/multilingual-e5-base`, run
+in-process with sentence-transformers. That uses about 1.2 GB of memory, so
+sentence-transformers is an optional extra, not a base dependency: install
+it with `pip install -e ".[local]"`. The Docker image does not include it.
+It is a local comparison baseline, not for the Render service. See "Where the models run" for what switching backends requires.
+
+If the Render service is on the free plan, it sleeps after about 15 idle
+minutes, and the next visitor waits for it to wake. Open the site a minute
+before a demo.
 
 ## Running locally
 
@@ -99,20 +133,40 @@ pytest                        # no network, no real backoff waits
 
 ## Where the models run
 
-| Workload | Where | Configured by | Needs network? |
-|---|---|---|---|
-| Generation | remote, OpenAI-**compatible** endpoint | `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY` | yes |
-| Embeddings | **in-process**, sentence-transformers | `EMBED_MODEL`, `EMBED_DIM` | no |
+| Workload | Default | Where it runs | Configured by | Needs network? |
+|---|---|---|---|---|
+| Generation | `gemini-3.6-flash`, failing over to `gemini-3.5-flash-lite`, then `gemini-3.1-flash-lite` | Gemini's OpenAI-**compatible** endpoint, through the `openai` client | `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`, `LLM_REASONING_EFFORT`, `LLM_MAX_TOKENS` | yes |
+| Question embedding | `gemini-embedding-001`, 768 dimensions | the **same** endpoint, client and key as generation | `EMBED_BACKEND`, `EMBED_MODEL`, `EMBED_DIM` | yes |
+| Similarity search | cosine similarity against the prebuilt `data/index/embeddings.npy` | in-process, one NumPy matrix multiply | `SIMILARITY_THRESHOLD` (0.61), `AMBIGUITY_MARGIN`, `INDEX_DIR` | no |
 
-Generation is provider-neutral on purpose: Gemini's free tier today, a local
-Ollama server (`LLM_BASE_URL=http://localhost:11434/v1`) as the offline
-fallback. Swapping is a `.env` edit, not a code change.
+There is one credential: `LLM_API_KEY` authenticates both generation and
+embeddings. At query time only the question is sent out to be embedded. The
+corpus vectors are already in the image, and the search runs locally.
 
-Embeddings never leave the process, so **retrieval cannot rate-limit, time out
-or fail on an expired token** — only generation can. The same model and the
-same Arabic normalisation (`rag/arabic.py`) run at index-build time and at
-query time; if those two paths ever diverge, retrieval degrades silently with
-no failing test, which is why they share one module.
+**Retrieval depends on the network.** Embedding a question can be
+rate-limited or time out. A rate-limited question embedding is retried once,
+waiting at most 5 seconds. Generation has the model failover chain above;
+embeddings have no failover. The index build (`scripts/build_index.py`)
+retries up to six times, because it uses up the free tier's per-minute
+embedding quota.
+
+`gemini-embedding-001` is natively 3,072-wide and is asked for 768. The
+shortened vectors come back with a norm of about 0.58, so `rag/retrieval.py`
+rescales them to unit length. Every similarity score, and the 0.61 threshold,
+assumes that rescaling.
+
+**Changing providers.** Generation is provider-neutral: pointing
+`LLM_BASE_URL` at a local Ollama server (`http://localhost:11434/v1`) is a
+`.env` edit, not a code change. Embeddings use the same base URL, so that
+edit moves them too. The committed index holds `gemini-embedding-001`
+vectors. Any other embedding model, including `EMBED_BACKEND=local`, means
+rebuilding the index and re-deriving `SIMILARITY_THRESHOLD`. The e5 baseline
+is also 768-wide, so the dimension check at startup will not catch a stale
+index.
+
+The same Arabic normalisation (`rag/arabic.py`) runs at index-build time and
+at query time. If those two paths ever diverge, retrieval degrades silently
+with no failing test, which is why they share one module.
 
 ## The corpus
 
@@ -182,7 +236,7 @@ src/chatbot/
     answer.py               # L2/L3: one call produces answer + confidence
     card.py                 # provenance and the confidence verdict
   rag/
-    retrieval.py            # embeds and retrieves (local sentence-transformers)
+    retrieval.py            # embeds the question (Gemini by default), searches the index
     markdown_corpus.py      # loads + validates the curated corpus
     arabic.py               # Arabic normalisation, shared by index and query
     registry_sync.py        # keeps every corpus file routable
@@ -196,24 +250,25 @@ scripts/
   sync_registry.py          # corpus  -> registry entries
 data/
   source_docs/              # the corpus, one markdown file per service
-  registry/authorities.json # what Daleel claims to cover
+  registry/authorities.json # what Dalil claims to cover
   index/                    # prebuilt embeddings + chunks (committed)
   pdf_inbox/                # drop PDFs here (the PDFs themselves are gitignored)
 tests/                      # pytest; no network
 ```
 
 The `sql/` package is kept from the fork this project started as. It is not on
-the request path — Daleel has no database — but its tests still run and it is
+the request path — Dalil has no database — but its tests still run and it is
 part of the project's history.
 
 ## Logging
 
-One JSON object per line to **stdout**, which is what the Space's log viewer
+One JSON object per line to **stdout**, which is what Render's log viewer
 reads. Files under `logs/` are written too, but only as a local convenience —
 a container's disk does not survive a restart.
 
-- **Startup** — `rag_index_loaded`, `embedder_warmup_complete`, or a
-  `WARNING`/`ERROR` if something is missing.
+- **Startup** — `rag_index_loaded`, then `embedder_warmup_complete` once a
+  test embedding succeeds, or a `WARNING`/`ERROR` (`rag_index_missing`,
+  `embedder_warmup_failed`) if something is wrong.
 - **Per request** — `chat_request_received` → one `stage_completed` per stage
   → `chat_request_completed`, or `chat_request_failed` with the stage that
   broke.

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Deploys Chatbot-Public to Render and verifies the deploy actually landed.
+    Deploys Dalil to Render and verifies the deploy actually landed.
 
 .DESCRIPTION
     Render is connected to this repo's GitHub remote with auto-deploy on
@@ -31,8 +31,9 @@
 
 .PARAMETER SkipSmokeTest
     Push and confirm the deploy is live, but don't hit /healthz, /, /chat.
-    Useful if you don't want the smoke test's real Hugging Face API call
-    (it costs one inference call and shows up in chat_log.csv / your logs).
+    Useful if you don't want the smoke test's real Gemini API calls
+    (one /chat question costs an embedding and a generation request, and
+    shows up in chat_log.csv / your logs).
 
 .PARAMETER TimeoutSeconds
     How long to wait for the deploy to go live before giving up (default 600).

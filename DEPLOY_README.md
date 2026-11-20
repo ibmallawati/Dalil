@@ -1,78 +1,83 @@
-# Deploying Chatbot-Public
+# Deploying Dalil
 
-How this app actually gets to Render, and every command involved. See
-[README.md.txt](README.md.txt) for the app itself and its logging setup.
+Dalil is live at **[https://dalil.online](https://dalil.online)**, served by a
+Render web service built from this repo's `Dockerfile`. A push to `main` is
+what deploys it. See [README.md](README.md) for the app itself, its
+configuration and its logging.
 
-## How deployment works here
+## Deploy files: active and legacy
 
-Render is connected to this repo's GitHub remote (`ibmallawati/chatbot-public`,
-branch `main`) with auto-deploy on push enabled. That connection lives in the
-Render dashboard, not in this repo — there's no `render.yaml`. So the actual
-deploy trigger is one command:
+| File | Status | Purpose |
+|---|---|---|
+| [`deploy.ps1`](deploy.ps1) | **Active** | The way to deploy. Checks the tree, pushes `main`, waits for Render to report the commit live, then smoke-tests it. |
+| [`.render.env.example`](.render.env.example) | **Active** | Template for `.render.env`, the local, gitignored file that gives `deploy.ps1` a read-only Render API key. |
+| [`Dockerfile`](Dockerfile) | **Active** | What Render builds. Listens on `$PORT`, with 7860 as the fallback. |
+| [`.dockerignore`](.dockerignore) | **Active** | What stays out of the image. |
+| [`tests/test_repo_hygiene.py`](tests/test_repo_hygiene.py) | **Active** | Guards against filenames that cannot be checked out on Linux, which broke a Render deploy on 23 Aug 2026. |
+| [`scripts/deploy_cloudrun.sh`](scripts/deploy_cloudrun.sh) | Legacy | Google Cloud Run fallback, kept in case Render is unavailable. Not used by the live site. |
+| [`.gcloudignore`](.gcloudignore) | Legacy | Upload filter for the Cloud Run script only. |
+| YAML front matter in [`README.md`](README.md) | Legacy | Configured a Hugging Face Docker Space, an earlier host. Render ignores it. |
+
+## How deployment works
+
+Render is connected to this repo's GitHub remote (`ibmallawati/Dalil`, branch
+`main`) with auto-deploy on push. That connection lives in the Render
+dashboard; there is no `render.yaml`. So the actual deploy trigger is:
 
 ```powershell
 git push origin main
 ```
 
-Everything in [deploy.ps1](deploy.ps1) exists to make that safe and
-verifiable: it refuses to push broken or uncommitted code, then (if you've
-set up a Render API key — see below) polls Render's API to confirm the new
-commit actually went live, and smoke-tests the running service.
+`deploy.ps1` wraps that one command. It refuses to push a dirty tree or a
+syntax error. Then, if a Render API key is set up, it polls Render's API until
+the new commit is live and smoke-tests the service.
 
-The API key is used **read-only** — to look up deploy status and the
-service's public URL. It never triggers the deploy itself; `git push` does.
+The API key is used **read-only**, to look up deploy status and the service's
+URL. It never triggers a deploy; `git push` does.
 
 ## One-time setup
 
-1. **Get a Render API key**: https://dashboard.render.com/u/settings#api-keys
-   -> "Create API Key".
-2. **Create your local config** (already gitignored, never commit it):
+1. **Set the environment variables on the Render service.** Render → the
+   service → **Environment**:
 
-   ```powershell
-   Copy-Item .render.env.example .render.env
-   notepad .render.env   # paste your real API key
-   ```
+   | Name | Required | Notes |
+   |---|---|---|
+   | `LLM_API_KEY` | Yes | The app exits at startup without it. |
+   | `LLM_MODEL` | No | Comma-separated failover chain, e.g. `gemini-3.6-flash,gemini-3.5-flash-lite,gemini-3.1-flash-lite`. |
+   | `LLM_BASE_URL`, `EMBED_BACKEND`, `EMBED_MODEL`, `EMBED_DIM`, `LOG_LEVEL` | No | Defaults in `src/chatbot/config.py`. Keep `EMBED_BACKEND` at its default (`gemini`); `local` needs about 1.2 GB of memory. |
 
-   `.render.env` contents:
-   ```
-   RENDER_API_KEY=rnd_xxxxxxxxxxxxxxxxxxxxxxxxxxxx
-   RENDER_SERVICE_ID=srv-d9abdncs728c73eg8qeg
-   ```
+   Do not set `PORT`. Render provides it.
 
-   This step is optional — `deploy.ps1` still pushes without it — but
-   without a key it can't tell you whether the deploy succeeded.
+2. **Set the health check path** to `/healthz` (Render → service →
+   **Settings**). Render then waits for the app to answer before switching
+   traffic to a new deploy.
 
-3. **(Recommended, one-time, in the Render dashboard)** Set the service's
-   *Health Check Path* to `/healthz` under Settings. Render uses this to
-   know when a new instance is actually ready during a deploy, instead of
-   just "the process started."
+3. **Custom domain.** `dalil.online` is attached under Render → service →
+   **Settings → Custom Domains**. Render handles its TLS certificate.
+
+4. **Optional: a Render API key for `deploy.ps1`.** Without it the script
+   still pushes, but it cannot tell you whether the deploy succeeded.
+
+   - Create a key: https://dashboard.render.com/u/settings#api-keys
+   - Create the local config (gitignored, never commit it):
+
+     ```powershell
+     Copy-Item .render.env.example .render.env
+     notepad .render.env   # paste your real API key
+     ```
+
+     ```
+     RENDER_API_KEY=rnd_xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+     RENDER_SERVICE_ID=srv-d9abdncs728c73eg8qeg
+     ```
+
+   - Check that `RENDER_SERVICE_ID` is the service serving `dalil.online`.
+     It's the `srv-…` part of the service's dashboard URL. The value above
+     is the script's built-in default.
 
 ## Deploying
 
-```powershell
-cd Chatbot-Public
-.\deploy.ps1
-```
-
-This will:
-1. Confirm you're on `main` with a clean working tree and that every
-   tracked `.py` file compiles.
-2. `git push origin main`.
-3. Poll Render until the new commit's deploy reaches `live` (up to 10 min
-   by default).
-4. Hit the live service's `/healthz`, `/`, and `/chat` to confirm it's
-   actually answering, not just "deployed."
-
-### Flags
-
-| Flag | What it does |
-|---|---|
-| `-Force` | Push even with uncommitted local changes (deploys the last commit as-is; uncommitted work is NOT included). |
-| `-DryRun` | Run every check but skip the push and everything after it — validates the script/config without deploying. |
-| `-SkipSmokeTest` | Push and confirm it's live, but skip the `/chat` smoke test (that call costs one real Hugging Face inference request and shows up in `chat_log.csv`). |
-| `-TimeoutSeconds <n>` | How long to wait for "live" before giving up (default 600). |
-
-### Normal workflow
+From the repo root:
 
 ```powershell
 git add <files>
@@ -80,54 +85,122 @@ git commit -m "..."
 .\deploy.ps1
 ```
 
-If `deploy.ps1` reports a preflight failure (dirty tree, syntax error, wrong
-branch), fix that and re-run — nothing is pushed until preflight passes.
+The script:
+
+1. Confirms you are on `main`, the working tree is clean, and every tracked
+   `.py` file compiles.
+2. Runs `git push origin main`.
+3. Polls Render until the new commit's deploy reaches `live` (up to 10
+   minutes by default).
+4. Calls the service's `/healthz`, `/` and `/chat` to confirm it is
+   answering.
+
+"Clean" includes **untracked files**. A stray file such as an unsaved report
+in `docs/` stops the preflight. Commit it, delete it, or run with `-Force`
+(the push still deploys only what is committed).
+
+Before pushing, run the test suite. At minimum, run the check that protects
+the Linux checkout:
+
+```powershell
+pytest tests/test_repo_hygiene.py
+```
+
+### Flags
+
+| Flag | What it does |
+|---|---|
+| `-Force` | Push even with uncommitted changes. Deploys the last commit as-is; uncommitted work is not included. |
+| `-DryRun` | Run every check, then stop before the push. Validates the script and `.render.env` without deploying. |
+| `-SkipSmokeTest` | Push and confirm the deploy is live, but skip the endpoint checks. The `/chat` check sends one real question, which may use one LLM request and counts against the 20-per-minute limit. |
+| `-TimeoutSeconds <n>` | How long to wait for `live` before giving up. Default 600. |
+
+The smoke test runs against the service's `onrender.com` URL, which the
+Render API returns. To check the public domain as well:
+
+```powershell
+curl https://dalil.online/healthz
+```
 
 ## Manual fallback (no script)
-
-If you just want the raw commands:
 
 ```powershell
 # Deploy
 git push origin main
 
-# Check the latest deploy's status (requires RENDER_API_KEY)
+# Latest deploy's status (needs RENDER_API_KEY)
 curl -H "Authorization: Bearer $env:RENDER_API_KEY" `
      "https://api.render.com/v1/services/srv-d9abdncs728c73eg8qeg/deploys?limit=1"
 
 # Smoke-test once it's live
-curl https://<your-service>.onrender.com/healthz
-curl -X POST https://<your-service>.onrender.com/chat `
+curl https://dalil.online/healthz
+curl -X POST https://dalil.online/chat `
      -H "Content-Type: application/json" `
-     -d '{"history":[{"role":"user","content":"hello"}]}'
+     -d '{"history":[{"role":"user","content":"كم رسوم تجديد جواز السفر؟"}]}'
 ```
 
-Or skip the CLI entirely: push, then watch
-`https://dashboard.render.com/web/srv-d9abdncs728c73eg8qeg` for the deploy to
-turn green.
+Or push, then watch the deploy turn green in the dashboard:
+`https://dashboard.render.com/web/srv-d9abdncs728c73eg8qeg`.
 
 ## Rollback
 
-Render keeps every previous deploy. Fastest path: dashboard -> **Events** tab
--> pick a prior successful deploy -> **Rollback to this deploy**. To roll
-back via git instead (so the rollback is itself deployable/repeatable):
+Render keeps every previous deploy. Fastest path: dashboard → **Events** →
+pick a previous successful deploy → **Rollback to this deploy**.
+
+To roll back through git instead, so the rollback is itself a normal deploy:
 
 ```powershell
 git revert <bad-commit-sha>
 .\deploy.ps1
 ```
 
-## Troubleshooting a bad deploy
+## Troubleshooting
 
-- **Build failed**: check the Render **Logs** tab during the build phase —
+- **Build failed.** Check the build output in Render's **Logs** tab. It's
   usually a `requirements.txt` install error.
-- **Build succeeded, service unhealthy / crashing**: check **Logs** after
-  deploy — every request now logs structured JSON (`chat_request_received`,
-  `stage_completed`, `chat_request_failed`, ...) with a `request_id` you can
-  filter on. See [README.md.txt](README.md.txt)'s Logging & Observability
-  section for the full field reference. Temporarily set `LOG_LEVEL=DEBUG`
-  in the Render dashboard's environment variables for more detail (e.g.
-  per-chunk RAG retrieval scores), then set it back to `INFO`.
-- **`deploy.ps1` times out waiting for "live"**: Docker builds can be slow
-  on Render's free tier. Re-run with a larger `-TimeoutSeconds`, or just
-  watch the dashboard — the push already happened.
+- **`git clone` fails with `File name too long`.** A tracked filename is over
+  Linux's 255-byte limit. Arabic is two bytes per letter, so a name that is
+  fine on Windows can be too long on Render. `tests/test_repo_hygiene.py`
+  catches this; shorten or untrack the file.
+- **Service starts, then exits with `LLM_API_KEY is missing`.** The variable
+  is not set on the Render service (setup step 1).
+- **Unhealthy or crashing after deploy.** Every request logs JSON lines to
+  stdout (`chat_request_received`, `stage_completed`, `chat_request_failed`)
+  with a `request_id` to filter on. See the Logging section of
+  [README.md](README.md). For more detail, set `LOG_LEVEL=DEBUG` on the
+  service, then set it back to `INFO`.
+- **`deploy.ps1` times out waiting for `live`.** Docker builds can be slow on
+  Render. Re-run with a larger `-TimeoutSeconds`, or watch the dashboard; the
+  push already happened.
+- **Users see "عدد كبير من الطلبات".** That's the rate limit: 20 `/chat`
+  requests per minute and 100 requests per hour per IP.
+
+## Legacy targets
+
+### Google Cloud Run (`scripts/deploy_cloudrun.sh`)
+
+A fallback host, not used by `dalil.online`. It needs `gcloud`, a project,
+and an `LLM_API_KEY` secret in Secret Manager. The script checks all three
+before building:
+
+```bash
+bash scripts/deploy_cloudrun.sh
+```
+
+It deploys to `me-central1` with 4 GiB of memory. That size and its "baking
+in the 1.1 GB embedding model" message come from when embeddings ran
+in-process. Both are larger than the current image needs.
+
+### Hugging Face Space
+
+The YAML front matter at the top of `README.md` (`sdk: docker`,
+`app_port: 7860`) configured a Docker Space. It is harmless to keep and is not
+part of the Render deploy.
+
+## Stale text left in the Cloud Run script
+
+This comment predates the Gemini embeddings. It doesn't change what the
+script does and is left as-is:
+
+- `scripts/deploy_cloudrun.sh` describes a 1.1 GB embedding model that the
+  image no longer contains.
