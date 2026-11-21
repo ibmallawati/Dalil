@@ -9,7 +9,10 @@ USER user
 ENV HOME=/home/user \
     PATH=/home/user/.local/bin:$PATH \
     HF_HOME=/home/user/.cache/huggingface
-# ↑ HF_HOME = a writable folder for the embedding model to download into.
+# ↑ HF_HOME = a writable Hugging Face cache folder. The default embedding
+# backend (EMBED_BACKEND=gemini) downloads nothing, so it stays empty; it
+# would only be used if sentence-transformers were installed and
+# EMBED_BACKEND=local, which this image does not do.
 
 WORKDIR /home/user/app
 # ↑ Work inside the user's own folder (writable), not root-owned /app.

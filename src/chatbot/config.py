@@ -9,19 +9,33 @@ instead of scattered across app.py / rag/retrieval.py / scripts.
 Importing this module loads .env and validates LLM_API_KEY immediately
 (fails fast on missing config).
 
---- Architecture (post-D1 revision) --------------------------------------
+--- Architecture ---------------------------------------------------------
 
-Daleel splits its two model workloads across two very different places:
+Both model workloads go through ONE OpenAI-compatible client
+(chatbot.llm.client), built from LLM_BASE_URL and LLM_API_KEY. By default
+that is Gemini's free tier.
 
-  GENERATION  -> a remote, OpenAI-COMPATIBLE chat endpoint.
-                 Configured entirely by env vars (LLM_BASE_URL, LLM_MODEL,
-                 LLM_API_KEY) so the provider is swappable WITHOUT a code
-                 change. Today: Gemini's free tier. Demo-day fallback:
-                 a local Ollama server. Same client code for both.
+  GENERATION  -> chat completions. LLM_MODEL is an ordered failover chain
+                 (default gemini-3.6-flash, gemini-3.5-flash-lite,
+                 gemini-3.1-flash-lite). The provider is swappable WITHOUT a
+                 code change: a local Ollama server is a .env edit.
 
-  EMBEDDINGS  -> fully LOCAL, in-process, via sentence-transformers.
-                 No API, no key, no network. Identical model at index-build
-                 time and query time.
+  EMBEDDINGS  -> EMBED_BACKEND selects the backend.
+                 "gemini" (default): gemini-embedding-001 over the same
+                 endpoint and key, requested at EMBED_DIM=768 and
+                 re-normalised to unit length in chatbot.rag.retrieval.
+                 "local": intfloat/multilingual-e5-base in-process via
+                 sentence-transformers, which is NOT in requirements.txt.
+                 Kept as the baseline the retrieval thresholds were first
+                 tuned against.
+
+  SEARCH      -> always local: cosine similarity against the prebuilt
+                 data/index/embeddings.npy. Only the question leaves the
+                 process at query time.
+
+The index and the query must be embedded by the same model. Changing
+EMBED_BACKEND or EMBED_MODEL means rebuilding the index
+(scripts/build_index.py) and re-deriving SIMILARITY_THRESHOLD.
 
 Cost constraint: this project must run at $0. Nothing here may point at a
 paid service by default.
@@ -228,9 +242,8 @@ def load_settings() -> Settings:
         raise RuntimeError(
             "LLM_API_KEY is missing.\n"
             "  Local:  copy '.env.example' to '.env' and fill it in.\n"
-            "  Hugging Face Spaces:  Settings -> Variables and secrets -> "
-            "New secret, named LLM_API_KEY.\n"
-            "  (A Space SECRET, not a variable — variables are public.)")
+            "  Render:  the service -> Environment -> "
+            "Add Environment Variable, named LLM_API_KEY.")
 
     default_db = DATA_DIR / "databases" / "omantel_demo.db"
     db_paths_raw = os.environ.get("DB_PATHS", str(default_db))

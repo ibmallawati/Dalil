@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "chatbot"
 version = "0.1.0"
-description = "Omantel customer service chatbot: RAG + multi-database text-to-SQL, with a retry/backoff fault-tolerance layer."
+description = "Dalil: an Arabic assistant for Omani government service procedures, answering only from a curated, cited corpus (RAG with grounding checks)."
 requires-python = ">=3.11"
 dependencies = [
     "flask",
@@ -17,12 +17,14 @@ dependencies = [
     # Generation client, kept for its OpenAI-COMPATIBLE surface (Gemini,
     # Ollama) rather than for OpenAI itself.
     "openai",
-    # Local in-process embeddings at both build and query time. Pulls torch.
-    "sentence-transformers",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest"]
+# EMBED_BACKEND=local only: in-process intfloat/multilingual-e5-base. Pulls
+# torch (~750 MB) and needs ~1.2 GB of RAM, so it is not a base dependency.
+# The default backend (gemini) embeds over HTTPS and needs none of this.
+local = ["sentence-transformers"]
 # Build-only deps for scripts/build_index.py's OCR fallback (see that file's
 # docstring). NOT deployed to Render - never add these to the base deps.
 build = ["pytesseract", "pdf2image"]
